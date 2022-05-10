@@ -19,7 +19,7 @@ T的推导不仅取决于expr的类型，也取决于ParamType的类型。这⾥
 知道它存在，而且不同于左值引⽤和右值引⽤）
 - ParamType⼀个通⽤引⽤
 - ParamType既不是指针也不是引⽤
-### ParamType是⼀个指针或引⽤，但不是通⽤引⽤
+### ParamType是⼀个指针或引用，但不是通用引用
 - **如果expr的类型是⼀个引⽤，忽略引⽤部分**
 - 然后剩下的部分决定T，然后T与形参匹配得出最终ParamType
 ```cpp
@@ -38,7 +38,7 @@ f(rx); //T是const int，param的类型是const int &
 
 是类型推导会如左值引⽤⼀样对待右值引⽤；
 
-### ParamType⼀个通⽤引⽤
+### ParamType⼀个通用引用
 - 如果expr是左值，T和ParamType都会被推导为左值引⽤。这⾮常不寻常，第⼀，这是模板类型推
 导中唯⼀⼀种T和ParamType都被推导为引⽤的情况。第⼆，虽然ParamType被声明为右值引⽤类
 型，但是最后推导的结果它是左值引⽤。
@@ -61,7 +61,7 @@ f(27); //27是右值，所以T是int
 ```
 即如果expr为左值，则T和param都为左值引用，若expr为右值，则T为普通类型，param为右值引用类型
 
-### ParamType既不是指针也不是引⽤
+### ParamType既不是指针也不是引用
 以值传递的方式处理，⽆论传递什么param都会成为它的⼀份拷⻉——⼀个完整的新对象。事实上param成为⼀个新对象这⼀⾏为会影响T如何从expr中推导出结果。
 - 和之前⼀样，如果expr的类型是⼀个引⽤，忽略这个引⽤部分
 - 如果忽略引⽤之后expr是⼀个const，那就再忽略const。如果它是volatile，也会被忽略（volatile
