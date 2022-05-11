@@ -382,3 +382,79 @@ decltype(auto) f2() // 注意不仅f2的返回类型不同于f1，而且它还�
 - decltype 总是不加修改的产生变量或者表达式的类型。
 - 对于 T 类型的左值表达式，decltype 总是产出 T 的引用即 T&。
 - C++14 支持 decltype(auto) ，就像 auto ⼀样，推导出类型，但是它使用自己的独特规则进行推导。
+
+## 条款四:学会查看类型推导结果
+三种⽅案：
+- 在你编辑代码的时候获得类型推导的结果
+- 在编译期间获得结果
+- 在运⾏时获得结果
+### IDE 编辑器
+对于简单的类型，IDE可以推断出类型
+```cpp
+const int theAnswer = 42;
+auto x = theAnswer; // int
+auto y = &theAnswer; // const int *
+```
+### 编译器诊断
+假如我们想看到之前那段代码中x和y的类型，我们可以⾸先声明⼀个类模板但不定义
+```cpp
+template<typename T> //只对TD进⾏声明
+class TD; //TD == "Type Displayer"
+
+//如果尝试实例化这个类模板就会引出⼀个错误消息，因为这⾥没有⽤来实例化的类模板定义
+TD<decltype(x)> xType; //引出错误消息
+TD<decltype(y)> yType; //x和y的类型
+
+// 会导致如下错误
+error: aggregate 'TD<int> xType' has incomplete type and cannot be defined
+error: aggregate 'TD<const int *> yType' has incomplete type and cannot be defined
+```
+
+## 运行时
+使用typeid产⽣⼀个std::type_info的对象，然后std::type_info⾥⾯的成员函数name()来产⽣⼀个C⻛格的字符串表⽰变量的名字
+```cpp
+std::cout<<typeid(x).name()<<"\n"; //显⽰x和y的类型
+std::cout<<typeid(y).name()<<"\n";
+// 对于不同的编译器产生不同的值，根据编译器对其进行解释
+```
+对于较为复杂的例子
+```cpp
+template<typename T>
+void f(const T& param);
+std::vector<Widget> createVec();
+const auto vw = createVec();
+if(!vw.empty()){
+f(&vw[0]);
+...
+}
+// 使用typeid进行打印
+template<typename T>
+void f(const T& param){
+    using std::cout;
+    cout<<"T= "<<typeid(T).name()<<"\n"; // const Widget*
+    cout<<"param = "<<typeid(param).name()<<"\n"; // const Widget*
+...
+}
+```
+该结果是有错误的，使用⽤Boost.TypeIndex可以得到比较准确的结果
+```cpp
+#include <boost/type_index.hpp>
+template<typename T>
+void f(const T& param){
+    using std::cout;
+    using boost::type_index::type_id_with_cvr;
+    //显⽰T
+    cout<<"T= "
+    <<type_id_with_cvr<T>().pretty_name() // const Widget*
+    <<"\n";
+    //显⽰param类型
+    cout<<"param= "
+    <<type_id_with_cvr<decltype(param)>().pretty_name() // const Widget* const &
+    <<"\n";
+}
+
+```
+## Item4-remember
+- 类型推断可以从IDE看出，从编译器报错看出，从⼀些库的使⽤看出
+- 这些⼯具可能既不准确也⽆帮助，所以理解C++类型推导规则才是最重要的
+
