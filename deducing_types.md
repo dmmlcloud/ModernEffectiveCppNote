@@ -5,50 +5,38 @@
 ```cpp
 template<typename T>
 void f(ParamType param);
-f(expr); //使⽤表达式调⽤f
+f(expr); //使用表达式调用f
 ```
 
-在编译期间，编译器使⽤ expr 进⾏两个类型推导：⼀个是针对 T 的，另⼀个是针对 ParamType 的，例如：
+在编译期间，编译器使用 expr 进⾏两个类型推导：⼀个是针对 T 的，另⼀个是针对 ParamType 的，例如：
 
 ```cpp
 template<typename T>
 void f(const T& param);
 int x = 0;
-f(x); //⽤⼀个int类型的变量调⽤f
+f(x); //用⼀个int类型的变量调用f
 ```
 
-<<<<<<< HEAD
-T的推导不仅取决于expr的类型，也取决于ParamType的类型。这⾥有三种情况：
-- ParamType是⼀个指针或引⽤，但不是通⽤引⽤（关于通⽤引⽤请参⻅Item24。在这⾥你只需要
-知道它存在，而且不同于左值引⽤和右值引⽤）
-- ParamType⼀个通⽤引⽤
-- ParamType既不是指针也不是引⽤
-### ParamType是⼀个指针或引用，但不是通用引用
-- **如果expr的类型是⼀个引⽤，忽略引⽤部分**
-- 然后剩下的部分决定T，然后T与形参匹配得出最终ParamType
-=======
 此时 T 被推导为 int， ParamType 被推导为 const int &
 **ParamType 推断出来的是 param 在参数列表中的类型，param 在函数内部表现一定是左值**
 T 的推导不仅取决于 expr 的类型，也取决于 ParamType 的类型。这⾥有三种情况：
 
-- ParamType 是⼀个指针或引⽤，但不是通⽤引⽤（关于通⽤引⽤请参⻅ Item24。在这⾥你只需要
-  知道它存在，而且不同于左值引⽤和右值引⽤）
-- ParamType ⼀个通⽤引⽤
-- ParamType 既不是指针也不是引⽤
+- ParamType 是⼀个指针或引用，但不是通用引用（关于通用引用请参⻅ Item24。在这⾥你只需要知道它存在，而且不同于左值引用和右值引用）
+- ParamType ⼀个通用引用
+- ParamType 既不是指针也不是引用
 
-### ParamType 是⼀个指针或引⽤，但不是通⽤引⽤
+### ParamType 是⼀个指针或引用，但不是通用引用
 
-- **如果 expr 的类型是⼀个引⽤，忽略引⽤部分**
+- **如果 expr 的类型是⼀个引用，忽略引用部分**
 - 然后剩下的部分决定 T，然后 T 与形参匹配得出最终 ParamType
 
->>>>>>> bf04359... update item3
 ```cpp
 template<typename T>
-void f(T & param); //param是⼀个引⽤
+void f(T & param); //param是⼀个引用
 
 int x=27; //x是int
 const int cx=x; //cx是const int
-const int & rx=cx; //rx是指向const int的引⽤
+const int & rx=cx; //rx是指向const int的引用
 
 f(x); //T是int，param的类型是int&
 f(cx); //T是const int，param的类型是const int &
@@ -57,26 +45,16 @@ f(rx); //T是const int，param的类型是const int &
 
 由 cx，rx 看出类型推断会保留其常量属性；
 
-是类型推导会如左值引⽤⼀样对待右值引⽤；
+是类型推导会如左值引用⼀样对待右值引用；
 
-<<<<<<< HEAD
-### ParamType⼀个通用引用
-- 如果expr是左值，T和ParamType都会被推导为左值引⽤。这⾮常不寻常，第⼀，这是模板类型推
-导中唯⼀⼀种T和ParamType都被推导为引⽤的情况。第⼆，虽然ParamType被声明为右值引⽤类
-型，但是最后推导的结果它是左值引⽤。
-- 如果expr是右值，就使⽤情景⼀的推导规则
-=======
-### ParamType ⼀个通⽤引⽤
+### ParamType ⼀个通用引用
 
-- 如果 expr 是左值，T 和 ParamType 都会被推导为左值引⽤。这⾮常不寻常，第⼀，这是模板类型推
-  导中唯⼀⼀种 T 和 ParamType 都被推导为引⽤的情况。第⼆，虽然 ParamType 被声明为右值引⽤类
-  型，但是最后推导的结果它是左值引⽤。
-- 如果 expr 是右值，就使⽤情景⼀的推导规则
+- 如果 expr 是左值，T 和 ParamType 都会被推导为左值引用。这⾮常不寻常，第⼀，这是模板类型推导中唯⼀⼀种 T 和 ParamType 都被推导为引用的情况。第⼆，虽然 ParamType 被声明为右值引用类型，但是最后推导的结果它是左值引用。
+- 如果 expr 是右值，就使用情景⼀的推导规则
 
->>>>>>> bf04359... update item3
 ```cpp
 template<typename T>
-void f(T&& param); //param现在是⼀个通⽤引⽤类型
+void f(T&& param); //param现在是⼀个通用引用类型
 
 int x=27; //如之前⼀样
 const int cx=x; //如之前⼀样
@@ -91,24 +69,15 @@ f(27); //27是右值，所以T是int
 //param类型就是int&&
 ```
 
-<<<<<<< HEAD
-### ParamType既不是指针也不是引用
-以值传递的方式处理，⽆论传递什么param都会成为它的⼀份拷⻉——⼀个完整的新对象。事实上param成为⼀个新对象这⼀⾏为会影响T如何从expr中推导出结果。
-- 和之前⼀样，如果expr的类型是⼀个引⽤，忽略这个引⽤部分
-- 如果忽略引⽤之后expr是⼀个const，那就再忽略const。如果它是volatile，也会被忽略（volatile
-不常⻅，它通常⽤于驱动程序的开发中。关于volatile的细节请参⻅Item40)
-=======
 即如果 expr 为左值，则 T 和 param 都为左值引用，若 expr 为右值，则 T 为普通类型，param 为右值引用类型
 
-### ParamType 既不是指针也不是引⽤
+### ParamType 既不是指针也不是引用
 
 以值传递的方式处理，⽆论传递什么 param 都会成为它的⼀份拷⻉——⼀个完整的新对象。事实上 param 成为⼀个新对象这⼀⾏为会影响 T 如何从 expr 中推导出结果。
 
-- 和之前⼀样，如果 expr 的类型是⼀个引⽤，忽略这个引⽤部分
-- 如果忽略引⽤之后 expr 是⼀个 const，那就再忽略 const。如果它是 volatile，也会被忽略（volatile
-  不常⻅，它通常⽤于驱动程序的开发中。关于 volatile 的细节请参⻅ Item40)
+- 和之前⼀样，如果 expr 的类型是⼀个引用，忽略这个引用部分
+- 如果忽略引用之后 expr 是⼀个 const，那就再忽略 const。如果它是 volatile，也会被忽略（volatile 不常⻅，它通常用于驱动程序的开发中。关于 volatile 的细节请参⻅ Item40)
 
->>>>>>> bf04359... update item3
 ```cpp
 template<typename T>
 void f(T param); //以传值的⽅式处理param
@@ -140,7 +109,7 @@ void f(T param);
 f(name); //T会被推导为const char*
 ```
 
-但是虽然函数不能接受真正的数组，但是可以接受指向数组的引⽤
+但是虽然函数不能接受真正的数组，但是可以接受指向数组的引用
 
 ```cpp
 template<typename T>
@@ -152,7 +121,7 @@ f(name); //传数组
 
 ```cpp
 template<typename T, std::size_t N>
-constexpr std::size_t arraySize(T (&)[N]) noexcept // 将⼀个函数声明为constexpr使得结果在编译期间可⽤
+constexpr std::size_t arraySize(T (&)[N]) noexcept // 将⼀个函数声明为constexpr使得结果在编译期间可用
 {
     return N;
 }
@@ -161,17 +130,16 @@ int keyVals[] = {1,3,5,7,9,11,22,25}; //keyVals有七个元素，由于constexpr
 int mappedVals[arraySize(keyVals)]; //mappedVals也有七个
 ```
 
-在 C++中不⽌是数组会退化为指针，函数类型也会退化为⼀个函数指针，我们对于数组的全部讨论都可
-以应⽤到函数来：
+在 C++中不⽌是数组会退化为指针，函数类型也会退化为⼀个函数指针，我们对于数组的全部讨论都可以应用到函数来：
 
 ```cpp
 void someFunc(int, double); //someFunc是⼀个函数，类型是void(int,double)
 template<typename T>
 void f1(T param); //传值
 template<typename T>
-void f2(T & param); //传引⽤
+void f2(T & param); //传引用
 f1(someFunc); //param被推导为指向函数的指针，类型是void(*)(int, double)
-f2(someFunc); //param被推导为指向函数的引⽤，类型为void(&)(int, bouel)
+f2(someFunc); //param被推导为指向函数的引用，类型为void(&)(int, bouel)
 ```
 
 auto 依赖于模板类型推导，正如我在开始谈论的，在⼤多数情况下它们的⾏为很直接。
@@ -180,10 +148,10 @@ auto 依赖于模板类型推导，正如我在开始谈论的，在⼤多数情
 
 **记住：**
 
-- 在模板类型推导时，有引⽤的实参会被视为⽆引⽤，他们的引⽤会被忽略
-- 对于通⽤引⽤的推导，左值实参会被特殊对待
+- 在模板类型推导时，有引用的实参会被视为⽆引用，他们的引用会被忽略
+- 对于通用引用的推导，左值实参会被特殊对待
 - 对于传值类型推导，实参如果具有常量性和易变性会被忽略
-- 在模板类型推导时，数组或者函数实参会退化为指针，除⾮它们被⽤于初始化引⽤
+- 在模板类型推导时，数组或者函数实参会退化为指针，除⾮它们被用于初始化引用
 
 ## 条款二:理解 auto 类型推导
 
@@ -194,24 +162,24 @@ auto x = 27;
 const auto cx = x;
 const auto & rx=cx;
 // 等价于
-template<typename T> //理想化的模板⽤来推导x的类型
+template<typename T> //理想化的模板用来推导x的类型
 void func_for_x(T param);
 func_for_x(27);
 
-template<typename T> //理想化的模板⽤来推导cx 的类型
+template<typename T> //理想化的模板用来推导cx 的类型
 void func_for_cx(const T param);
 func_for_cx(x);
 
-template<typename T> //理想化的模板⽤来推导rx的类型
+template<typename T> //理想化的模板用来推导rx的类型
 void func_for_rx(const T & param);
 func_for_rx(x)；
 ```
 
 即三种情况：（类型说明符即为 template 中的 paramType）
 
-- 类型说明符是⼀个指针或引⽤但不是通⽤引⽤
-- 类型说明符⼀个通⽤引⽤
-- 类型说明符既不是指针也不是引⽤
+- 类型说明符是⼀个指针或引用但不是通用引用
+- 类型说明符⼀个通用引用
+- 类型说明符既不是指针也不是引用
 
 对于数组和函数退化成指针，auto 也是相同的：
 
@@ -272,15 +240,8 @@ reset({1,2,3}); //错误！推导失败
 ```
 
 ## Item2-remember
-<<<<<<< HEAD
-- auto类型推导通常和模板类型推导相同，但是auto类型推导假定花括号初始化代表
-std::initializer_list而模板类型推导不这样做
-- 在C++14中auto允许出现在函数返回值或者lambda函数形参中，但是它的⼯作机制是模板类型推
-导那⼀套⽅案。
-=======
 
-- auto 类型推导通常和模板类型推导相同，但是 auto 类型推导假定花括号初始化代表
-  std::initializer_list 而模板类型推导不这样做
+- auto 类型推导通常和模板类型推导相同，但是 auto 类型推导假定花括号初始化代表 std::initializer_list 而模板类型推导不这样做
 - 在 C++14 中 auto 允许出现在函数返回值或者 lambda 函数形参中，但是它的⼯作机制是模板类型推导那⼀套方案。
 
 ## 条款三:理解 decltype
@@ -313,8 +274,8 @@ if(v[0]==0) //decltype(v[0])是int&
 使用 decltype 计算返回类型可以这样实现：
 
 ```cpp
-/* 函数名称前⾯的auto不会做任何的类型推导⼯作。相反的，他只是暗⽰使⽤了C++11的尾置返回类型语法，
-即在函数形参列表后⾯使⽤⼀个-> 符号指出函数的返回类型，尾置返回类型的好处是我们可以在函数返回类型中使⽤函数参数相关的信息*/
+/* 函数名称前⾯的auto不会做任何的类型推导⼯作。相反的，他只是暗⽰使用了C++11的尾置返回类型语法，
+即在函数形参列表后⾯使用⼀个-> 符号指出函数的返回类型，尾置返回类型的好处是我们可以在函数返回类型中使用函数参数相关的信息*/
 template<typename Container,typename Index>
 auto authAndAccess(Container& c,Index i)
 ->decltype(c[i])
@@ -340,7 +301,7 @@ auto authAndAccess(Container& c,Index i)
 ```cpp
 std::deque<int> d;
 ...
-authAndAccess(d,5)=10; //认证⽤⼾，返回d[5]，
+authAndAccess(d,5)=10; //认证用⼾，返回d[5]，
 //然后把10赋值给它
 //⽆法通过编译器！ 无法将一个右值赋值给右值
 ```
@@ -375,7 +336,7 @@ template<typename Containter,typename Index>
 decltype(auto) authAndAccess(Container&& c,Index i);
 ```
 
-但在这个模板中不知道操纵的容器的类型是什么，而 Index 有可能是索引对象（不是简单的 int）对⼀个未知类型的对象使⽤传值是通常对程序的性能有极⼤的影响在这个例⼦中还会造成不必要的拷贝，还会造成对象切片行为
+但在这个模板中不知道操纵的容器的类型是什么，而 Index 有可能是索引对象（不是简单的 int）对⼀个未知类型的对象使用传值是通常对程序的性能有极⼤的影响在这个例⼦中还会造成不必要的拷贝，还会造成对象切片行为
 
 ```cpp
 template<typename Container,typename Index> //最终的C++14版本
@@ -408,7 +369,7 @@ decltype(auto) f1()
     ...
     return x; //decltype(x）是int，所以f1返回int
 }
-decltype(auto) f2() // 注意不仅f2的返回类型不同于f1，而且它还引⽤了⼀个局部变量(未定义行为)
+decltype(auto) f2() // 注意不仅f2的返回类型不同于f1，而且它还引用了⼀个局部变量(未定义行为)
 {
     int x =0;
     ...
@@ -421,4 +382,3 @@ decltype(auto) f2() // 注意不仅f2的返回类型不同于f1，而且它还�
 - decltype 总是不加修改的产生变量或者表达式的类型。
 - 对于 T 类型的左值表达式，decltype 总是产出 T 的引用即 T&。
 - C++14 支持 decltype(auto) ，就像 auto ⼀样，推导出类型，但是它使用自己的独特规则进行推导。
->>>>>>> bf04359... update item3
