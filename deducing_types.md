@@ -236,7 +236,6 @@ std::vector<int> v;
 auto resetV = [&v](const auto & newValue){v=newValue;}; //C++14
 ...
 reset({1,2,3}); //错误！推导失败
-
 ```
 
 ## Item2-remember
@@ -266,7 +265,6 @@ T& operator[](std::size_t index);
 vector<int> v; //decltype(v)是vector<int>
 ...
 if(v[0]==0) //decltype(v[0])是int&
-
 ```
 
 在 C++11 中，decltype 最主要的用途就是用于函数模板返回类型，而这个返回类型依赖形参，举个例子，假定我们写⼀个函数，⼀个参数为容器，⼀个参数为索引值，这个函数支持使用方括号的方式访问容器中指定索引值的数据，然后在返回索引操作的结果前执行认证用户操作。函数的返回类型应该和索引操作返回的类型相同。
@@ -384,19 +382,27 @@ decltype(auto) f2() // 注意不仅f2的返回类型不同于f1，而且它还�
 - C++14 支持 decltype(auto) ，就像 auto ⼀样，推导出类型，但是它使用自己的独特规则进行推导。
 
 ## 条款四:学会查看类型推导结果
+
 三种⽅案：
+
 - 在你编辑代码的时候获得类型推导的结果
 - 在编译期间获得结果
 - 在运⾏时获得结果
+
 ### IDE 编辑器
-对于简单的类型，IDE可以推断出类型
+
+对于简单的类型，IDE 可以推断出类型
+
 ```cpp
 const int theAnswer = 42;
 auto x = theAnswer; // int
 auto y = &theAnswer; // const int *
 ```
+
 ### 编译器诊断
-假如我们想看到之前那段代码中x和y的类型，我们可以⾸先声明⼀个类模板但不定义
+
+假如我们想看到之前那段代码中 x 和 y 的类型，我们可以⾸先声明⼀个类模板但不定义
+
 ```cpp
 template<typename T> //只对TD进⾏声明
 class TD; //TD == "Type Displayer"
@@ -410,14 +416,18 @@ error: aggregate 'TD<int> xType' has incomplete type and cannot be defined
 error: aggregate 'TD<const int *> yType' has incomplete type and cannot be defined
 ```
 
-## 运行时
-使用typeid产⽣⼀个std::type_info的对象，然后std::type_info⾥⾯的成员函数name()来产⽣⼀个C⻛格的字符串表⽰变量的名字
+### 运行时
+
+使用 typeid 产⽣⼀个 std::type_info 的对象，然后 std::type_info ⾥⾯的成员函数 name()来产⽣⼀个 C ⻛格的字符串表⽰变量的名字
+
 ```cpp
 std::cout<<typeid(x).name()<<"\n"; //显⽰x和y的类型
 std::cout<<typeid(y).name()<<"\n";
 // 对于不同的编译器产生不同的值，根据编译器对其进行解释
 ```
+
 对于较为复杂的例子
+
 ```cpp
 template<typename T>
 void f(const T& param);
@@ -436,7 +446,9 @@ void f(const T& param){
 ...
 }
 ```
-该结果是有错误的，使用⽤Boost.TypeIndex可以得到比较准确的结果
+
+该结果是有错误的，使用⽤ Boost.TypeIndex 可以得到比较准确的结果
+
 ```cpp
 #include <boost/type_index.hpp>
 template<typename T>
@@ -452,9 +464,9 @@ void f(const T& param){
     <<type_id_with_cvr<decltype(param)>().pretty_name() // const Widget* const &
     <<"\n";
 }
-
 ```
-## Item4-remember
-- 类型推断可以从IDE看出，从编译器报错看出，从⼀些库的使⽤看出
-- 这些⼯具可能既不准确也⽆帮助，所以理解C++类型推导规则才是最重要的
 
+## Item4-remember
+
+- 类型推断可以从 IDE 看出，从编译器报错看出，从⼀些库的使⽤看出
+- 这些⼯具可能既不准确也⽆帮助，所以理解 C++类型推导规则才是最重要的
