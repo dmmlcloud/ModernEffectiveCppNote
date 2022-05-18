@@ -15,7 +15,7 @@ C++11 使用统一初始化,统一初始化是一个概念上的东西，而括�
 std::vector<int> v{1,3,5}; //v包含1,3,5
 ```
 
-括号初始化也能被用于为⾮静态数据成员指定默认初始值。C++11 允许"="初始化也拥有这种能⼒：
+括号初始化也能被用于为非静态数据成员指定默认初始值。C++11 允许"="初始化也拥有这种能⼒：
 
 ```cpp
 class Widget{
@@ -35,7 +35,7 @@ std::atomic<int> ai2(0); //没问题
 std::atomic<int> ai3 = 0; //错误！
 ```
 
-在 C++中这三种⽅式都被指派为初始化表达式，但是只有括号任何地⽅都能被使用，所以叫统一初始化
+在 C++中这三种方式都被指派为初始化表达式，但是只有括号任何地方都能被使用，所以叫统一初始化
 但是括号初始化不允许内置隐式的变窄转换：
 
 ```cpp
@@ -54,8 +54,8 @@ Widget w2(); //最令⼈头疼的解析！声明一个函数w2，返回Widget
 Widget w3{}; //调用没有参数的构造函数构造对象
 ```
 
-括号初始化的缺点是有时它有一些令⼈惊讶的⾏为。Item2 解释了当 auto 声明的变量使用花括号初始化，变量就会被推导为 std::initializer_list，尽管使用相同内容的其他初始化⽅式会产⽣正常的结果。所以，你越喜欢用 atuo，你就越不能用括号初始化。
-在构造函数调用中，只要不包含 std::initializer_list 参数，那么花括号初始化和小括号初始化都会产⽣一
+括号初始化的缺点是有时它有一些令⼈惊讶的行为。Item2 解释了当 auto 声明的变量使用花括号初始化，变量就会被推导为 std::initializer_list，尽管使用相同内容的其他初始化方式会产生正常的结果。所以，你越喜欢用 atuo，你就越不能用括号初始化。
+在构造函数调用中，只要不包含 std::initializer_list 参数，那么花括号初始化和小括号初始化都会产生一
 样的结果：
 
 ```cpp
@@ -71,7 +71,7 @@ Widget w3(10, 5.0); // 调用第二个构造函数
 Widget w4{10, 5.0}; // 同上
 
 // 添加一个以std::initializer_list为参数的函数
-// w2和w4将会使用新添加的构造函数构造，即使另一个⾮std::initializer_list构造函数对于实参是更好的选择
+// w2和w4将会使用新添加的构造函数构造，即使另一个非std::initializer_list构造函数对于实参是更好的选择
 class Widget {
 public:
     Widget(int i, bool b); // 同上
@@ -133,11 +133,11 @@ Widget w4({}); // 调用std::initializer_list
 Widget w5{{}}; // 同上
 ```
 
-std::vector 有一个⾮ std::initializer_list 构造函数允许你去指定容器的初始⼤小，以及使用一个值填满你的容器。
-但它也有一个 std::initializer_list 构造函数允许你使用花括号⾥⾯的值初始化容器。如果你创建一个数值类型的 vector，然后你传递两个实参。把这两个实参放到小括号和放到花括号中是不同：
+std::vector 有一个非 std::initializer_list 构造函数允许你去指定容器的初始大小，以及使用一个值填满你的容器。
+但它也有一个 std::initializer_list 构造函数允许你使用花括号里面的值初始化容器。如果你创建一个数值类型的 vector，然后你传递两个实参。把这两个实参放到小括号和放到花括号中是不同：
 
 ```cpp
-std::vector<int> v1(10, 20); //使用⾮std::initializer_list
+std::vector<int> v1(10, 20); //使用非std::initializer_list
 //构造函数创建一个包含10个元素的std::vector
 //所有的元素的值都是20
 std::vector<int> v2{10, 20}; //使用std::initializer_list
@@ -146,11 +146,11 @@ std::vector<int> v2{10, 20}; //使用std::initializer_list
 ```
 
 - 第一，作为一个类库作者，你需要意识到如果你的一堆构造函数中重载过一个或者多个
-  std::initializer_list，用⼾代码如果使用了括号初始化，可能只会看到你重载的 std::initializer_list 这一个版本的构造函数。
+  std::initializer_list，用户代码如果使用了括号初始化，可能只会看到你重载的 std::initializer_list 这一个版本的构造函数。
 - 第二，作为一个类库使用者，你必须认真的在花括号和小括号之间选择一个来创建对象。
 
 如果你是一个模板的作者，花括号和小括号创建对象就更麻烦了。通常不能知晓哪个会被使用。
-举个例⼦，假如你想创建一个接受任意数量的参数，然后用它们创建一个对象。使用可变参数模板(variadic template )可以⾮常简单的解决：
+举个例子，假如你想创建一个接受任意数量的参数，然后用它们创建一个对象。使用可变参数模板(variadic template )可以非常简单的解决：
 
 ```cpp
 template<typename T, typename... Ts>
@@ -169,13 +169,13 @@ doSomeWork<std::vector<int>>(10, 20);
 如果 doSomeWork 创建 localObject 时使用的是小括号，std::vector 就会包含 10 个元素。
 如果 doSomeWork 创建 localObject 时使用的是花括号，std::vector 就会包含 2 个元素。
 哪个是正确的？doSomeWork 的作者不知道，只有调用者知道。
-这正是标准库函数 std::make_unique 和 std::make_shared（参⻅ Item21）⾯对的问题。
+这正是标准库函数 std::make_unique 和 std::make_shared（参见 Item21）面对的问题。
 
 ## Item7-remember
 
-- 括号初始化是最⼴泛使用的初始化语法，它防⽌变窄转换，并且对于 C++最令⼈头疼的解析有天⽣的免疫性
+- 括号初始化是最⼴泛使用的初始化语法，它防止变窄转换，并且对于 C++最令⼈头疼的解析有天生的免疫性
 - 在构造函数重载决议中，括号初始化尽最大可能与 std::initializer_list 参数匹配，即便其他构造函数看起来是更好的选择
-- 对于数值类型的 std::vector 来说使用花括号初始化和小括号初始化会造成巨⼤的不同
+- 对于数值类型的 std::vector 来说使用花括号初始化和小括号初始化会造成巨大的不同
 - 在模板类选择使用小括号初始化或使用花括号初始化创建对象是一个挑战。
 
 ## 条款八:优先考虑 nullptr 而非 0 和 NULL
@@ -186,16 +186,16 @@ doSomeWork<std::vector<int>>(10, 20);
 void f(int); //三个f的重载函数
 void f(bool);
 void f(void*);
-f(0); //调⽤f(int)而不是f(void*)
-f(NULL); //可能不会被编译，⼀般来说调⽤f(int),绝对不会调⽤f(void*)
+f(0); //调用f(int)而不是f(void*)
+f(NULL); //可能不会被编译，一般来说调用f(int),绝对不会调用f(void*)
 ```
 
 f(NULL)的不确定行为是由 NULL 的实现不同造成的
-nullptr 的优点是它不是整型，它也不是⼀个指针类型，但是可以把它认为是通用类型的指针。nullptr 的真正类型是 std::nullptr_t，在⼀个完美的循环定义以后，std::nullptr_t 又被定义为 nullptr。
+nullptr 的优点是它不是整型，它也不是一个指针类型，但是可以把它认为是通用类型的指针。nullptr 的真正类型是 std::nullptr_t，在一个完美的循环定义以后，std::nullptr_t 又被定义为 nullptr。
 std::nullptr_t 可以转换为指向任何内置类型的指针。
 
 ```cpp
-f(nullptr); //调⽤重载函数f的f(void*)版本
+f(nullptr); //调用重载函数f的f(void*)版本
 ```
 
 在使用 auto 时，nullptr 能够帮助我们确定类型
@@ -216,9 +216,9 @@ nullptr 在模板中更加有用
 ```cpp
 int f1(std::shared_ptr<Widget> spw);    // 只能被合适的
 double f2(std::unique_ptr<Widget> upw); // 已锁互斥量调
-bool f3(Widget* pw);                    // ⽤
-std::mutex f1m, f2m, f3m; // 互斥量f1m，f2m，f3m，各种⽤于f1，f2，f3函数
-using MuxGuard = // C++11的typedef，参⻅Item9
+bool f3(Widget* pw);                    // 用
+std::mutex f1m, f2m, f3m; // 互斥量f1m，f2m，f3m，各种用于f1，f2，f3函数
+using MuxGuard = // C++11的typedef，参见Item9
 std::lock_guard<std::mutex>;
 …
 // 非模板版本
@@ -247,17 +247,17 @@ decltype(auto) lockAndCall(FuncType func, MuxType& mutex, PtrType ptr) {
 
 auto result1 = lockAndCall(f1, f1m, 0); // 错误！ 0的类型被推断为int
 …
-auto result2 = lockAndCall(f2, f2m, NULL); // 错误！NULL会被推断为⼀个int或者类似int的类型
+auto result2 = lockAndCall(f2, f2m, NULL); // 错误！NULL会被推断为一个int或者类似int的类型
 …
 auto result3 = lockAndCall(f3, f3m, nullptr); // 没问题
 ```
 
 ## Item8-remember
 
-- 优先考虑 nullptr 而⾮ 0 和 NULL
+- 优先考虑 nullptr 而非 0 和 NULL
 - 避免重载指针和整型
 
-## 条款九:优先考虑别名声明而⾮ typedefs
+## 条款九:优先考虑别名声明而非 typedefs
 
 对于复杂的类型可以使用 typedef 或是 using
 
@@ -267,10 +267,10 @@ typedef std::unique_ptr<std::unordered_map<std::string, std::string>> UPtrMapSS;
 using UPtrMapSS = std::unique_ptr<std::unordered_map<std::string, std::string>>; // c++11
 ```
 
-当声明⼀个函数指针时别名声明更容易理解：
+当声明一个函数指针时别名声明更容易理解：
 
 ```cpp
-// FP是⼀个指向函数的指针的同义词，它指向的函数带有int和const std::string&形参，不返回任何东
+// FP是一个指向函数的指针的同义词，它指向的函数带有int和const std::string&形参，不返回任何东
 西
 typedef void (*FP)(int, const std::string&); // typedef
 //同上
@@ -294,7 +294,7 @@ MyAllocList<Widget>::type lw;
 
 // 如果需要在模板内使用
 // 需要在typedef前面加上typename
-// 这⾥MyAllocList::type使⽤了⼀个类型，这个类型依赖于模板参数T。因此MyAllocList::type是⼀个依赖类型，在C++很多讨⼈喜欢的规则中的⼀个提到必须要在依赖类型名前加上typename。
+// 这里MyAllocList::type使用了一个类型，这个类型依赖于模板参数T。因此MyAllocList::type是一个依赖类型，在C++很多讨⼈喜欢的规则中的一个提到必须要在依赖类型名前加上typename。
 
 template<typename T>
 class Widget {
@@ -315,9 +315,9 @@ private:
 
 ```
 
-当编译器在 Widget 的模板中看到 MyAllocList::type（使⽤ typedef 的版本），它不能确定那是⼀个类型的名称。因为可能存在 MyAllocList 的⼀个特化版本没有 MyAllocList::type。
+当编译器在 Widget 的模板中看到 MyAllocList::type（使用 typedef 的版本），它不能确定那是一个类型的名称。因为可能存在 MyAllocList 的一个特化版本没有 MyAllocList::type。
 
-C++11 在 type traits 中给了你⼀系列⼯具去实现类型转换，如果要使⽤这些模板请包含头⽂件<type_traits>
+C++11 在 type traits 中给了你一系列⼯具去实现类型转换，如果要使用这些模板请包含头⽂件<type_traits>
 
 ```cpp
 std::remove_const<T>::type // 从const T中产出T
@@ -325,7 +325,7 @@ std::remove_reference<T>::type // 从T&和T&&中产出T
 std::add_lvalue_reference<T>::type // 从T中产出T&
 ```
 
-如果你在⼀个模板内部使⽤类型参数，你也需要在它们前⾯加上 typename。因为这些 type traits 是通过在 struct 内嵌套 typedef 来实现的。
+如果你在一个模板内部使用类型参数，你也需要在它们前面加上 typename。因为这些 type traits 是通过在 struct 内嵌套 typedef 来实现的。
 
 ```cpp
 std::remove_const<T>::type // C++11: const T → T
@@ -348,3 +348,156 @@ using add_lvalue_reference_t = typename add_lvalue_reference<T>::type;
 - typedef 不支持模板化，但是别名声明支持。
 - 别名模板避免了使用"::type"后缀，而且在模板中使用 typedef 还需要在前面加上 typename
 - C++14 提供了 C++11 所有类型转换的别名声明版本
+
+## 条款十:优先考虑限域枚举而非未限域枚举
+
+在 enum 作用域中声明的枚举名所在的作用域也包括 enum 本身(未限域枚举)
+
+```cpp
+enum Color { black, white, red }; // black, white, red 和
+                                  // Color一样都在相同作用域
+auto white = false; // 错误! white早已在这个作用
+                    // 域中存在
+```
+
+在 C++11 中它们有一个相似物，限域枚举(scoped enum)，它不会导致枚举名泄漏:
+
+```cpp
+enum class Color { black, white, red }; // black, white, red
+// 限制在Color域内
+auto white = false; // 没问题，同样域内没有这个名字
+Color c = white; //错误，这个域中没有white
+Color c = Color::white; // 没问题
+auto c = Color::white; // 也没问题（也符合条款5的建议）
+```
+
+通过 enum class 声明，也被称为枚举类
+在限域枚举的作用域内，枚举名是强类型，而在非限域枚举中枚举名会隐式转化为整型
+
+```cpp
+enum Color { black, white, red }; // 未限域枚举
+std::vector<std::size_t> // func返回x的质因子
+primeFactors(std::size_t x);
+Color c = red;
+…
+if (c < 14.5) { // Color与double比较 (!)
+    auto factors = // 计算一个Color的质因子(!)
+        primeFactors(c);
+…
+}
+
+enum class Color { black, white, red }; // Color现在是限域枚举
+Color c = Color::red; // 和之前一样，只是
+… // 多了一个域修饰符
+if (c < 14.5) { // 错误！不能比较
+// Color和double
+    auto factors = // 错误! 不能向参数为std::size_t的函数
+    primeFactors(c); // 传递Color参数
+    …
+}
+
+// 可以通过强制类型转换使用
+if (static_cast<double>(c) < 14.5) { // 奇怪的代码，但是
+// 有效
+    auto factors = // suspect, but
+    primeFactors(static_cast<std::size_t>(c)); // 能通过编译
+…
+}
+
+```
+
+限域枚举可以前置声明
+
+```cpp
+enum Color; // 错误！需要一些限制
+enum class Color; // 没问题
+```
+
+因为在 C++中所有的枚举都有一个由编译器决定的整型的基础类型。为了高效使用内存，编译器通常在确保能包含所有枚举值的前提下为枚举选择一个最小的基础类型。在
+一些情况下，编译器将会优化速度，舍弃大小，这种情况下它可能不会选择最小的基础类型，而是选择对优化大小有帮助的类型。为此，C++98 只支持枚举定义（所有枚举名全部列出来）；枚举声明是不被允许的。这使得编译器能为之前使用的每一个枚举选择一个基础类型
+
+不能前置声明会增加编译依赖
+
+```cpp
+enum Status { good = 0,
+failed = 1,
+incomplete = 100,
+corrupt = 200,
+audited = 500, // 新增的枚举项
+indeterminate = 0xFFFFFFFF
+};
+```
+
+可能整个系统都得重新编译，即使只有一个子系统或者一个函数使用了新添加的枚举名，如果使用前置声明，即使 Status 的定义发生改变，包含这些声明的头⽂件也不会重新编译。而且如果 Status 添加一个枚举名（比如添加一个 audited），continueProcessing 的行为不受影响（因为 continueProcessing 没有使用这个新添加的 audited），continueProcessing 也不需要重新编译。
+
+```cpp
+enum class Status; // forward declaration
+void continueProcessing(Status s); // use of fwd-declared enum
+```
+
+限域枚举的基础类型总是已知的（默认 int），枚举的基础类型都是可以指定的
+
+```cpp
+enum class Status; // 基础类型是int
+enum class Status: std::uint32_t; // Status的基础类型
+                                    // 是std::uint32_t
+                                    // (需要包含 <cstdint>)
+enum Color: std::uint8_t; // 为非限域枚举Color指定
+                            // 基础为
+                            // std::uint8_t
+// 也可以放在定义处
+enum class Status: std::uint32_t {
+    good = 0,
+    failed = 1,
+    incomplete = 100,
+    corrupt = 200,
+    audited = 500,
+    indeterminate = 0xFFFFFFFF
+};
+```
+
+在获取 C++11 tuples 中的字段的时候，非限域枚举是有用的，因为需要他转化为整型
+
+```cpp
+using UserInfo = // 类型别名，参见Item 9
+std::tuple<std::string, // 名字
+            std::string, // email地址
+            std::size_t> ; // 声望
+UserInfo uInfo; // tuple对象
+…
+// 很难记住每一位对应的含义，所以使用enum
+auto val = std::get<1>(uInfo); // 获取第一个字段
+enum UserInfoFields { uiName, uiEmail, uiReputation };
+UserInfo uInfo;
+…
+auto val = std::get<uiEmail>(uInfo); // 获取用户email
+
+// 而如果使用限域枚举
+enum class UserInfoFields { uiName, uiEmail, uiReputation };
+UserInfo uInfo; // as before
+…
+auto val =
+std::get<static_cast<std::size_t>(UserInfoFields::uiEmail)>
+(uInfo);
+```
+
+对于限域枚举可以封装一个强制类型转换的函数，std::get 是⼀个模板（函数），需要你给出⼀个 std::size_t 值的模板实参（注意使用 <> 而不是 () ），因此将枚举名变换为 std::size_t 值会发⽣在编译期，所以必须是⼀个 constexpr 模板函数。
+
+```cpp
+template<typename E> // C++14
+constexpr decltype(auto)
+toUType(E enumerator) noexcept
+{
+    return static_cast<std::underlying_type_t<E>>(enumerator);
+    // underlying_type_t 返回的是枚举类型的基础类型
+}
+// 所以可以写成
+auto val = std::get<toUType(UserInfoFields::uiEmail)>(uInfo);
+```
+
+## Item10-remember
+
+- C++98 的枚举即非限域枚举
+- 限域枚举的枚举名仅在 enum 内可见。要转换为其它类型只能使用 cast。
+- 非限域/限域枚举都支持基础类型说明语法，限域枚举基础类型默认是 int 。非限域枚举没有默认基础类型。
+- 限域枚举总是可以前置声明。非限域枚举仅当指定它们的基础类型时才能前置。
