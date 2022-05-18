@@ -1,6 +1,6 @@
 # Moving to Modern C++
 
-## 条款七:区别使用()和{}创建对象
+## Item7:区别使用()和{}创建对象
 
 ```cpp
 Widget w1; //调用默认构造函数
@@ -15,7 +15,7 @@ C++11 使用统一初始化,统一初始化是一个概念上的东西，而括�
 std::vector<int> v{1,3,5}; //v包含1,3,5
 ```
 
-括号初始化也能被用于为非静态数据成员指定默认初始值。C++11 允许"="初始化也拥有这种能⼒：
+括号初始化也能被用于为非静态数据成员指定默认初始值。C++11 允许"="初始化也拥有这种能力：
 
 ```cpp
 class Widget{
@@ -49,12 +49,12 @@ C++规定任何能被决议为一个声明的东西必须被决议为声明。�
 
 ```cpp
 Widget w1(10); //使用实参10调用Widget的一个构造函数
-Widget w2(); //最令⼈头疼的解析！声明一个函数w2，返回Widget
+Widget w2(); //最令人头疼的解析！声明一个函数w2，返回Widget
 // 使用花括号不会
 Widget w3{}; //调用没有参数的构造函数构造对象
 ```
 
-括号初始化的缺点是有时它有一些令⼈惊讶的行为。Item2 解释了当 auto 声明的变量使用花括号初始化，变量就会被推导为 std::initializer_list，尽管使用相同内容的其他初始化方式会产生正常的结果。所以，你越喜欢用 atuo，你就越不能用括号初始化。
+括号初始化的缺点是有时它有一些令人惊讶的行为。Item2 解释了当 auto 声明的变量使用花括号初始化，变量就会被推导为 std::initializer_list，尽管使用相同内容的其他初始化方式会产生正常的结果。所以，你越喜欢用 atuo，你就越不能用括号初始化。
 在构造函数调用中，只要不包含 std::initializer_list 参数，那么花括号初始化和小括号初始化都会产生一
 样的结果：
 
@@ -128,7 +128,7 @@ public:
 };
 Widget w1; // 调用默认构造函数
 Widget w2{}; // 同上
-Widget w3(); // 最令⼈头疼的解析！声明一个函数
+Widget w3(); // 最令人头疼的解析！声明一个函数
 Widget w4({}); // 调用std::initializer_list
 Widget w5{{}}; // 同上
 ```
@@ -173,12 +173,12 @@ doSomeWork<std::vector<int>>(10, 20);
 
 ## Item7-remember
 
-- 括号初始化是最⼴泛使用的初始化语法，它防止变窄转换，并且对于 C++最令⼈头疼的解析有天生的免疫性
+- 括号初始化是最⼴泛使用的初始化语法，它防止变窄转换，并且对于 C++最令人头疼的解析有天生的免疫性
 - 在构造函数重载决议中，括号初始化尽最大可能与 std::initializer_list 参数匹配，即便其他构造函数看起来是更好的选择
 - 对于数值类型的 std::vector 来说使用花括号初始化和小括号初始化会造成巨大的不同
 - 在模板类选择使用小括号初始化或使用花括号初始化创建对象是一个挑战。
 
-## 条款八:优先考虑 nullptr 而非 0 和 NULL
+## Item8:优先考虑 nullptr 而非 0 和 NULL
 
 如果 C++发现在当前上下⽂只能使用指针，它会很不情愿的把 0 解释为指针，NULL 也是如此，但是 0 和 NULL 都不是指针类型，在作为重载函数的参数的时候，他们不会调用指针对应的函数
 
@@ -257,7 +257,7 @@ auto result3 = lockAndCall(f3, f3m, nullptr); // 没问题
 - 优先考虑 nullptr 而非 0 和 NULL
 - 避免重载指针和整型
 
-## 条款九:优先考虑别名声明而非 typedefs
+## Item9:优先考虑别名声明而非 typedefs
 
 对于复杂的类型可以使用 typedef 或是 using
 
@@ -294,7 +294,7 @@ MyAllocList<Widget>::type lw;
 
 // 如果需要在模板内使用
 // 需要在typedef前面加上typename
-// 这里MyAllocList::type使用了一个类型，这个类型依赖于模板参数T。因此MyAllocList::type是一个依赖类型，在C++很多讨⼈喜欢的规则中的一个提到必须要在依赖类型名前加上typename。
+// 这里MyAllocList::type使用了一个类型，这个类型依赖于模板参数T。因此MyAllocList::type是一个依赖类型，在C++很多讨人喜欢的规则中的一个提到必须要在依赖类型名前加上typename。
 
 template<typename T>
 class Widget {
@@ -349,7 +349,7 @@ using add_lvalue_reference_t = typename add_lvalue_reference<T>::type;
 - 别名模板避免了使用"::type"后缀，而且在模板中使用 typedef 还需要在前面加上 typename
 - C++14 提供了 C++11 所有类型转换的别名声明版本
 
-## 条款十:优先考虑限域枚举而非未限域枚举
+## Item10:优先考虑限域枚举而非未限域枚举
 
 在 enum 作用域中声明的枚举名所在的作用域也包括 enum 本身(未限域枚举)
 
@@ -501,3 +501,240 @@ auto val = std::get<toUType(UserInfoFields::uiEmail)>(uInfo);
 - 限域枚举的枚举名仅在 enum 内可见。要转换为其它类型只能使用 cast。
 - 非限域/限域枚举都支持基础类型说明语法，限域枚举基础类型默认是 int 。非限域枚举没有默认基础类型。
 - 限域枚举总是可以前置声明。非限域枚举仅当指定它们的基础类型时才能前置。
+
+## Item11:优先考虑使⽤deleted函数而⾮使⽤未定义的私有声明
+有时C++会给你⾃动声明⼀些函数，如果你想防⽌客户调⽤这些函数，事情就不那么简单了。
+
+**在C++98中防⽌调⽤这些函数的⽅法是将它们声明为私有成员函数。**
+
+举个例⼦，在C++ 标准库iostream继承链的顶部是模板类 basic_ios 。所有 istream 和 ostream 类都继承此类(直接或者间接)。拷⻉istream 和 ostream 是不合适的。
+```cpp
+template <class charT, class traits = char_traits<charT> >
+class basic_ios : public ios_base {
+public:
+    …
+private:
+    basic_ios(const basic_ios& ); // not defined
+    basic_ios& operator=(const basic_ios&); // not defined
+};
+```
+**在C++11中有⼀种更好的⽅式，只需要使⽤相同的结尾：⽤ = delete 将拷⻉构造函数和拷⻉赋值运算符标记为 deleted 函数：**
+```cpp
+template <class charT, class traits = char_traits<charT> >
+class basic_ios : public ios_base {
+public:
+    …
+    basic_ios(const basic_ios& ) = delete;
+    basic_ios& operator=(const basic_ios&) = delete;
+    …
+};
+```
+deleted 函数不能以任何⽅式被调⽤，即使你在成员函数或者友元函数⾥⾯调⽤deleted 函数也不能通过编译。
+
+通常， deleted 函数被声明为public而不是private.这也是有原因的：当客⼾端代码试图调⽤成员函数，C++会在检查 deleted 状态前检查它的访问性，所以当客⼾端代码调⽤⼀个私有的 deleted 函数，⼀些编译器只会给出该函数是private的错误，而没有诸如该函数被 deleted 修饰的错误。
+
+deleted 函数还有⼀个重要的优势是任何函数都可以标记为 deleted。
+
+C++有沉重的C包袱，使得含糊的、能被视作数值的任何类型都能隐式转换为 int ，但是有⼀些调⽤可能是没有意义的：
+```cpp
+bool isLucky(int number);
+if (isLucky('a')) … // 字符'a'是幸运数？
+if (isLucky(true)) … // "true"是?
+if (isLucky(3.5)) … // 难道判断它的幸运之前还要先截尾成3？
+bool isLucky(char) = delete; // 拒绝char
+bool isLucky(bool) = delete; // 拒绝bool
+bool isLucky(double) = delete; // 拒绝float和double，在传入float时会转为double（优先）或int
+```
+另⼀个 deleted 函数⽤武之地（private成员函数做不到的地⽅）是禁⽌⼀些模板的实例化。
+假如你要求⼀个模板仅⽀持原⽣指针：
+```cpp
+template<typename T>
+void processPointer(T* ptr);
+```
+在指针的世界⾥有两种特殊情况。⼀是 void* 指针，因为没办法对它们进⾏解引⽤，或者加加减减等。另⼀种指针是 char* ，因为它们通常代表C⻛格的字符串，而不是正常意义下指向单个字符的指针。这两种情况要特殊处理，在 processPointer 模板⾥⾯，我们假设正确的函数应该拒绝这些类型。也即是说， processPointer 不能被 void* 和 char* 调⽤。
+```cpp
+template<>
+void processPointer<void>(void*) = delete;
+template<>
+void processPointer<char>(char*) = delete;
+template<>
+void processPointer<const void>(const void*) = delete;
+template<>
+void processPointer<const char>(const char*) = delete;
+// 如果你想做得更彻底⼀些，你还要删除 const volatile void* 和 const volatile char* 重载版本，另外还需要⼀并删除其他标准字符类型的重载版本： std::wchar_t , std::char16_t 和 std::char32_t 。
+```
+如果的类⾥⾯有⼀个函数模板，你可能想⽤ private （经典的C++98惯例）来禁⽌这些函数模板实例化，但是不能这样做，因为不能给特化的模板函数指定⼀个不同（于函数模板）的访问级别。
+```cpp
+class Widget {
+public:
+…
+    template<typename T>
+    void processPointer(T* ptr)
+    { … }
+private:
+    template<> // 错误！
+    void processPointer<void>(void*);
+};
+// delete 不会出现这个问题，因为它不需要⼀个不同的访问级别，且他们可以在类外被删除
+class Widget {
+public:
+    …
+    template<typename T>
+    void processPointer(T* ptr)
+    { … }
+…
+};
+template<>
+void Widget::processPointer<void>(void*) = delete; // 还是public，但是已经被删除了
+```
+## Item11-remember
+- ⽐起声明函数为private但不定义，使⽤delete函数更好
+- 任何函数都能 delete ，包括⾮成员函数和模板实例
+- 函数模板意指未特化前的源码，模板函数则倾向于模板实例化后的函数
+
+## Item12:使⽤override声明重载函数
+虚函数重写：
+```cpp
+class Base {
+public:
+    virtual void doWork(); // 基类虚函数
+    …
+};
+class Derived: public Base {
+public:
+    virtual void doWork(); // 重写Base::doWork(这⾥"virtual"是可以省略的)
+        …
+};
+std::unique_ptr<Base> upb = // 创建基类指针
+std::make_unique<Derived>(); // 指向派⽣类对象
+
+… 
+upb->doWork(); // 通过基类指针调⽤doWork
+                // 实际上是派⽣类的doWork
+                // 函数被调⽤
+```
+要想重写⼀个函数，必须满⾜下列要求：
+- 基类函数必须是 virtual
+- 基类和派⽣类函数名必须完全⼀样（除⾮是析构函数
+- 基类和派⽣类函数参数必须完全⼀样
+- 基类和派⽣类函数常量性(constness)必须完全⼀样
+- 基类和派⽣类函数的返回值和异常说明(exception specifications)必须兼容
+- 函数的引⽤限定符（reference qualifiers）必须完全⼀样。它可以限定成员函数只能⽤于左值或者右值。成员函数不需要 virtual 也能使⽤它们：（C++11）
+```cpp
+class Widget {
+public:
+    …
+    void doWork() &; //只有*this为左值的时候才能被调⽤
+    void doWork() &&; //只有*this为右值的时候才能被调⽤
+};
+…
+Widget makeWidget(); // ⼯⼚函数（返回右值）
+Widget w; // 普通对象（左值）
+…
+w.doWork(); // 调⽤被左值引⽤限定修饰的Widget::doWork版本
+            // (即Widget::doWork &)
+makeWidget().doWork(); // 调⽤被右值引⽤限定修饰的Widget::doWork版本
+                        // (即Widget::doWork &&)
+```
+这么多的重写需求意味着哪怕⼀个小小的错误也会造成巨⼤的不同:
+```cpp
+class Base {
+public:
+    virtual void mf1() const;
+    virtual void mf2(int x);
+    virtual void mf3() &;
+    void mf4() const;
+};
+class Derived: public Base {
+public:
+    virtual void mf1(); // const限定不同
+    virtual void mf2(unsigned int x); // 参数不同
+    virtual void mf3() &&; // 引用限定不同
+    void mf4() const; // 非virtual
+};
+```
+上述代码在编译时可能没有warning
+
+由于正确声明派⽣类的重写函数很重要，但很容易出错，C++11提供⼀个⽅法让你可以显式的将派⽣类函数指定为应该是基类重写版本：将它声明为 override：
+```cpp
+class Derived: public Base {
+public:
+    virtual void mf1() override;
+    virtual void mf2(unsigned int x) override;
+    virtual void mf3() && override;
+    virtual void mf4() const override;
+};
+```
+代码不能编译，当然了，因为这样写的时候，编译器会抱怨所有与重写有关的问题，这也是你想要的，以及为什么要在所有重写函数后⾯加上 override。
+
+正确写法：
+```cpp
+class Base {
+public:
+    virtual void mf1() const;
+    virtual void mf2(int x);
+    virtual void mf3() &;
+    virtual void mf4() const;
+};
+class Derived: public Base {
+public:
+    virtual void mf1() const override;
+    virtual void mf2(int x) override;
+    virtual void mf3() & override;
+    void mf4() const override; // 可以添加virtual，但不是必要
+};
+```
+如果你考虑修改修改基类虚函数的函数签名， override 还可以帮你评估后果。如果派⽣类全都⽤上 override ，你可以只改变基类函数签名，重编译系统，再看看你造成了多⼤的问题（即，多少派⽣类不能通过编译），然后决定是否值得如此⿇烦更改函数签名。没有重写，你只能寄希望于完善的单元测试，因为，正如我们所⻅，派⽣类虚函数本想重写基类，但是没有，编译器也没有探测并发出诊断信息。
+
+C++11引⼊了两个上下⽂关键字, override 和 final （向虚函数添加 final 可以防⽌派⽣类重写。 final 也能⽤于类，这时这个类不能⽤作基类）。
+
+这两个关键字的特点是它们是保留的，它们只是位于特定上下⽂才被视为关键字。对于 override ，它只在成员函数声明结尾处才被视为关键字。这意味着如果你以前写的代码⾥⾯已经⽤过override这个名字，那么换到C++11标准你也⽆需修改代码：
+```cpp
+class Warning { // potential legacy class from C++98
+public:
+    …
+    void override(); // C++98和C++11都合法
+};
+```
+下面介绍成员函数的引用限定的使用场景：
+假设我们的 Widget 类有⼀个 std::vector 数据成员，我们提供⼀个函数让客⼾端可以直接访问它：
+
+```cpp
+class Widget {
+public:
+    using DataType = std::vector<double>; // 参⻅Item
+    …
+    DataType& data() { return values; }
+…
+private:
+    DataType values;
+};
+
+Widget w;
+…
+auto vals1 = w.data(); // 拷⻉w.values到vals1
+//Widget::data函数的返回值是⼀个左值引⽤（准确的说是 std::vector<double>& ）,因为左值引⽤是左值， vals1 从左值初始化，因此它由 w.values 拷⻉构造而得
+Widget makeWidget();
+// 使用makeWidget 返回的 std::vector 初始化⼀个变量：
+auto vals2 = makeWidget().data(); // 拷⻉Widget⾥⾯的值到vals2
+// Widgets::data 返回的是左值引⽤，还有，左值引⽤是左值。所以，我们的对象(vals2)⼜得从Widget⾥的values拷⻉构造，但Widget 是 makeWidget 返回的临时对象（即右值），所以将其中的 std::vector 进⾏拷⻉纯属浪费。最好是移动，但是因为 data 返回左值引⽤，C++的规则要求编译器不得不⽣成⼀个拷⻉。
+// 现在就可以使⽤引⽤限定写⼀个重载函数来达成这⼀⽬的：
+class Widget {
+public:
+    using DataType = std::vector<double>;
+    …
+    DataType& data() & // 对于左值Widgets,
+    { return values; } // 返回左值
+    DataType data() && // 对于右值Widgets,
+    { return std::move(values); } // 返回右值
+    …
+private:
+    DataType values;
+};
+
+auto vals1 = w.data(); //调⽤左值重载版本的Widget::data，拷⻉构造vals1
+auto vals2 = makeWidget().data(); //调⽤右值重载版本的Widget::data, 移动构造vals2
+```
+## Item12-remember
+- 为重载函数加上 override
+- 成员函数限定让我们可以区别对待左值对象和右值对象（即 *this）
