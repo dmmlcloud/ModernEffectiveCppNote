@@ -134,7 +134,7 @@ std::shared_ptr<Investment> sp = makeInvestment(arguments);
 
 ## Item19:对于共享资源使用 std::shared_ptr
 
-std::shared_ptr 可以让多个 std::shared_ptr 指向一个对象，std::shared_ptr 通过引用计数来确保它是否是最后一个指向某种资源的指针，引用计数关联资源并跟踪有多少 std::shared_ptr 指向该资源。 std::shared_ptr 构造函数递增引用计数值，析构函数递减值，拷⻉赋值运算符可能递增也可能递减值。（如果 sp1 和 sp2 是 std::shared_ptr 并且指向不同对象，赋值运算符 sp1=sp2 会使 sp1 指向 sp2 指向的对象。直接效果就是 sp1 引用计数减一，sp2 引用计数加一。）如果 std::shared_ptr 发现引用计数值为零，没有其他 std::shared_ptr 指向该资源，它就会销毁资源。
+std::shared_ptr 可以让多个 std::shared_ptr 指向一个对象，std::shared_ptr 通过引用计数来确保它是否是最后一个指向某种资源的指针，引用计数关联资源并跟踪有多少 std::shared_ptr 指向该资源。 std::shared_ptr 构造函数递增引用计数值，析构函数递减值，拷贝赋值运算符可能递增也可能递减值。（如果 sp1 和 sp2 是 std::shared_ptr 并且指向不同对象，赋值运算符 sp1=sp2 会使 sp1 指向 sp2 指向的对象。直接效果就是 sp1 引用计数减一，sp2 引用计数加一。）如果 std::shared_ptr 发现引用计数值为零，没有其他 std::shared_ptr 指向该资源，它就会销毁资源。
 
 shared_ptr 的性能代价：
 
@@ -239,7 +239,7 @@ void Widget::process()
 
 通常控制块的实现使用继承，里面还有一个虚函数（用来确保指向的对象被正确销毁）。所以对于 std::shared_ptr 的开销需要考虑：动态分配控制块，任意大小的销毁器和分配器，虚函数机制，原子引用计数修改。
 
-在通常情况下， std::shared_ptr 创建控制块会使用默认销毁器和默认分配器，控制块只需三个 word 大小。它的分配基本上是⽆开销的。（开销被并入了指向的对象的分配成本里。细节参见[Item21](#item21优先考虑使用-stdmakeunique-和-stdmakeshared-而非-new)）。对 std::shared_ptr 解引用的开销不会比原始指针高。执行原子引用计数修改操作需要承担一两个原子操作开销，这些操作通常都会一一映射到机器指令上，所以即使对比非原子指令来说，原子指令开销较大，但是它们仍然只是单个指令。对于每个被 std::shared_ptr 指向的对象来说，控制块中的虚函数机制产生的开销通常只需要承受一次，即对象销毁的时候。
+在通常情况下， std::shared_ptr 创建控制块会使用默认销毁器和默认分配器，控制块只需三个 word 大小。它的分配基本上是无开销的。（开销被并入了指向的对象的分配成本里。细节参见[Item21](#item21优先考虑使用-stdmakeunique-和-stdmakeshared-而非-new)）。对 std::shared_ptr 解引用的开销不会比原始指针高。执行原子引用计数修改操作需要承担一两个原子操作开销，这些操作通常都会一一映射到机器指令上，所以即使对比非原子指令来说，原子指令开销较大，但是它们仍然只是单个指令。对于每个被 std::shared_ptr 指向的对象来说，控制块中的虚函数机制产生的开销通常只需要承受一次，即对象销毁的时候。
 
 作为这些轻微开销的交换，你得到了动态分配的资源的生命周期⾃动管理的好处。大多数时候，比起手动管理，使用 std::shared_ptr 管理共享性资源都是非常合适的。
 
@@ -257,11 +257,219 @@ std::shared_ptr 不能处理的另一个东西是数组。和 std::unique_ptr �
 
 ## Item20:当 std::shard_ptr 可能悬空时使用 std::weak_ptr
 
+std::weak_ptr 通常从 std::shared_ptr 上创建。当从 std::shared_ptr 上创建 std::weak_ptr 时两者指向相同的对象，但是 std::weak_ptr 不会影响所指对象的引用计数：
+
+```cpp
+auto spw = // after spw is constructed
+std::make_shared<Widget>(); // the pointed-to Widget's
+                            // ref count(RC) is 1
+                            // See Item 21 for in on std::make_shared
+…
+std::weak_ptr<Widget> wpw(spw); // wpw points to same Widget as
+                                // spw. RC remains 1
+…
+spw = nullptr; // RC goes to 0, and the
+               // Widget is destroyed.
+               // wpw now dangles
+// std::weak_ptr使用expired测试指针是否为空
+if (wpw.expired()) … // if wpw doesn't point to an object
+```
+
+通常在检查完 std::weak_ptr 是否失效后，若没失效还需要访问其指向的对象，若需要将两步分开还需要进行加锁操作，合成一个原子操作可以通过使用 std::weak_ptr 创建 std::shared_ptr 实现：
+
+```cpp
+std::shared_ptr<Widget> spw1 = wpw.lock(); // if wpw's expired,
+                                           // spw1 is null
+auto spw2 = wpw.lock(); // same as above, but uses auto
+```
+
+或是以 std::weak_ptr 为实参创建 std::shared_ptr:
+
+```cpp
+std::shared_ptr<Widget> spw3(wpw); // if wpw's expired, throw
+                                   // std::bad_weak_ptr
+```
+
+- 考虑⼀个工厂函数，它基于⼀个 UID 从只读对象上产出智能指针。根据[Item18](#item18对于独占资源使用-stduniqueptr)的描述，工厂函数会返回⼀个该对象类型的 std::unique_ptr ：
+
+```cpp
+std::unique_ptr<const Widget> loadWidget(WidgetID id);
+```
+
+如果调用 loadWidget 是⼀个昂贵的操作（⽐如它操作⽂件或者数据库 I/O）并且对于 ID 来重复使用很常⻅，⼀个合理的优化是再写⼀个函数除了完成 loadWidget 做的事情之外再缓存它的结果。当请求获取⼀个 Widget 放在缓存操作上这本⾝也会导致性能问题（缓存越来越多），所以另⼀个合理的优化可以是当 Widget 不再使用的时候销毁它的缓存。
+
+缓存对象的指针需要知道它是否已经悬空，因为当工厂客户端使用完工厂产⽣的对象后，对象将被销毁，关联的缓存条⽬会悬空。所以缓存应该使用 std::weak_ptr ，这可以知道是否已经悬空。这意味着工厂函数返回值类型应该是 std::shared_ptr ，因为只有当对象的⽣命周期由 std::shared_ptr 管理时，std::weak_ptr 才能检测到悬空。
+
+```cpp
+std::shared_ptr<const Widget> fastLoadWidget(WidgetID id)
+{
+    static std::unordered_map<WidgetID,
+    std::weak_ptr<const Widget>> cache;
+    auto objPtr = cache[id].lock(); // objPtr is std::shared_ptr
+                                    // to cached object
+                                    // (or null if object's not in cache)
+    if (!objPtr) { // if not in cache
+        objPtr = loadWidget(id); // load it
+        cache[id] = objPtr; // cache it
+    }
+    return objPtr;
+}
+```
+
+- std::weak_ptr 的第二个使用场景：观察者设计模式。此模式的主要组件是 subjects（状态可能会更改的对象）和 observers（状态发⽣更改时要通知的对象）。在⼤多数实现中，每个 subject 都包含⼀个数据成员，该成员持有指向其 observer 的指针。这使 subject 很容易发布状态更改通知。subject 对控制 observers 的⽣命周期（例如，当它们被销毁时）没有兴趣，但是 subject 对确保 observers 被销毁时，不会访问它具有极⼤的兴趣 。⼀个合理的设计是每个 subject 持有其 observers 的 std::weak_ptr ，因此可以在使用前
+  检查是否已经悬空。
+
+- 作为最后⼀个使用 std::weak_ptr 的例⼦，考虑⼀个持有三个对象 A、B、C 的数据结构，A 和 C 共享 B 的所有权，因此持有 std::shared_ptr ：
+  ![](./weak_ptr.jpg)
+- 原始指针：使用这种⽅法，如果 A 被销毁，但是 C 继续指向 B，B 就会有⼀个指向 A 的悬空指针。而且 B 不知道指针已经悬空，所以 B 可能会继续访问，就会导致未定义⾏为。
+- std::shared_ptr：这种设计，A 和 B 都互相持有对⽅的 std::shared_ptr ，导致 std::shared_ptr 在销毁时出现循环。即使 A 和 B ⽆法从其他数据结构被访问（⽐如，C 不再指向 B），每个的引用计数都是 1。如果发⽣了这种情况，A 和 B 都被泄露：程序⽆法访问它们，但是资源并没有被回收。
+- std::weak_ptr：这避免了上述两个问题。如果 A 被销毁，B 还是有悬空指针，但是 B 可以检查。尤其是尽管 A 和 B 互相指向，B 的指针不会影响 A 的引用计数，因此不会导致⽆法销毁。
+
+使用 std::weak_ptr 显然是这些选择中最好的。但是，需要注意使用 std::weak_ptr 打破 std::shared_ptr 循环并不常⻅。在严格分层的数据结构⽐如树，⼦节点只被⽗节点持有。当⽗节点被销毁时，⼦节点就被销毁。从⽗到⼦的链接关系可以使用 std::unique_ptr 很好的表征。从⼦到⽗的反向连接可以使用原始指针安全实现，因此⼦节点的⽣命周期肯定短于⽗节点。因此⼦节点解引用⼀个悬垂的⽗节点指针是没有问题的。
+
+从效率⻆度来看， std::weak_ptr 与 std::shared_ptr 基本相同。两者的⼤小是相同的，使用相同的控制块（参⻅ Item 19），构造、析构、赋值操作涉及引用计数的原⼦操作，控制块上有 weak_ptr 的计数
+
 ## Item20-remember
+
+- 像 std::shared_ptr 使用 std::weak_ptr 可能会悬空。
+- std::weak_ptr 的潜在使用场景包括：caching、observer lists、打破 std::shared_ptr 指向循环
 
 ## Item21:优先考虑使用 std::make_unique 和 std::make_shared 而非 new
 
+三个 make functions 中的两个 std::make_unique 和 std::make_shared 通过接收抽象参数，完美转发
+到构造函数去动态分配⼀个对象，然后返回这个指向这个对象的指针实现。例如一个简单的 make_unique:
+
+```cpp
+template<typename T, typename... Ts>
+std::unique_ptr<T> make_unique(Ts&&... params)
+{
+    return std::unique_ptr<T>(new T(std::forward<Ts>(params)...));
+}
+```
+
+第三个 make function 是 std::allocate_shared. 它和 std::make_shared ⼀样，除了第⼀个参数是用来动态分配内存的对象。
+
+对使用和不使用 make 函数创建智能指针进行简单的⽐较：
+
+```cpp
+auto upw1(std::make_unique<Widget>()); // with make func
+std::unique_ptr<Widget> upw2(new Widget); // without make func
+auto spw1(std::make_shared<Widget>()); // with make func
+std::shared_ptr<Widget> spw2(new Widget); // without make func
+```
+
+- 使用 new 的版本重复了类型，但是 make function 的版本没有，应该避免重复代码。源代码中的重复增加了编译的时间，会导致⽬标代码冗余，并且通常会让代码库使用更加困难。
+- 使用 make function 的原因和异常安全有段，假设函数：
+
+  ```cpp
+  void processWidget(std::shared_ptr<Widget> spw, int priority);
+  // 使用new进行调用
+  processWidget(std::shared_ptr<Widget>(new Widget), computePriority()); //potential resource leak!
+  ```
+
+  这段代码可能在 new Widget 时发⽣泄露，这和编译器将源码转换为⽬标代码有关。在运⾏时，⼀个函数的参数必须先被计算，才能被调用，所以在调用 processWidget 之前，必须执⾏以下操作，processWidget 才开始执⾏：
+
+  1. 表达式'new Widget'必须计算，例如,⼀个 Widget 对象必须在堆上被创建
+  2. 负责管理 new 出来指针的 std::shared_ptr<Widget> 构造函数必须被执⾏
+  3. computePriority()必须运⾏
+
+  编译器不需要按照执⾏顺序⽣成代码。“new Widget"必须在 std::shared_ptr 的构造函数被调用前执⾏，因为 new 出来的结果作为构造函数的参数，但 compute Priority 可能在这之前，之后，或者之间执⾏。也就是说，编译器可能按照这个执⾏顺序⽣成代码：
+
+  1. 执⾏ new Widget
+  2. 执⾏ computePriority
+  3. 运⾏ std::shared_ptr 构造函数
+
+  如果按照这样的顺序执行，而 computePriority 出现异常，Widget 就会泄漏，而使用 std::make_shared 就可以防止，因为 std::make_shared 将 new Widget 和 std::shared_ptr 放在了一起，不管 std::make_shared 和 computePriority 谁先执行都不会出现问题。std::unique_ptr 和 std::make_unique 也是如此。
+
+- 使用 std::shared_ptr 使效率更高（静态大小，执行速度）：std::allocate_shared 同理
+  ```cpp
+  std::shared_ptr<Widget> spw(new Widget); // 分配两次内存，new 一次 构建 shared_ptr 构建控制块一次
+  auto spw(std::make_shared<Widget>()); // 分配一次内存，在构建 shared_ptr 时一次构建对象和控制块
+  ```
+
+但有时 make function 不应该被使用：
+
+- make 函数不能自定义虚构函数，而普通的 std::shared_ptr, std::unique_ptr 可以：
+  ```cpp
+  auto widgetDeleter = [](Widget*){...};
+  std::unique_ptr<Widget, decltype(widgetDeleter)>
+  upw(new Widget, widgetDeleter);
+  std::shared_ptr<Widget> spw(new Widget, widgetDeleter);
+  ```
+- make 函数第⼆个限制来⾃于其单⼀概念的句法细节。[Item7](./moving2modern_cpp.md) 解释了，当构造函数重载，有 std::initializer_list 作为参数和不用其作为参数时，用⼤括号创建对象更倾向于使用 std::initializer_list 作为参数的构造函数，而用圆括号创建对象倾向于不用 std::initializer_list 作为参数的构造函数。make 函数会将它们的参数完美转发给对象构造函数，但是它们是使用圆括号还是⼤括号?
+  ```cpp
+  auto upv = std::make_unique<std::vector<int>>(10, 20);
+  auto spv = std::make_shared<std::vector<int>>(10, 20);
+  ```
+  上述两种调用都创建了 10 个元素，每个值为 20，这意味着在 make 函数中，完美转发使用圆括号，而不是⼤括号。如果你想用⼤括号初始化指向的对象，你必须直接使用 new。使用 make 函数需要能够完美转发⼤括号初始化，但是，正如[item30](./rvalue_references%26more.md)所说，⼤括号初始化⽆法完美转发。但是，[item30](./rvalue_references%26more.md)介绍了⼀个变通的⽅法：使用 auto 类型推导从⼤括号初始化创建 std::initializer_list 对象(⻅[Item2](./deducing_types.md))，然后将 auto 创建的对象传递给 make 函数。
+  ```cpp
+  //创建std::initializer_list
+  auto initList = { 10, 20 };
+  //使用std::initializer_list为形参的构造函数创建std::vector
+  auto spv = std::make_shared<std::vector<int>>(initList);
+  ```
+对于std::unique_ptr只有上述两种情况，而对于std::shared_ptr还有两个问题：
+- 一些类重载了operator new和operator delete。这些函数的存在意味着对这些类型的对象的全局内存分配和释放是不合常规的。设计这种定制操作往往只会精确的分配、释放对象大小的内存。例如，Widget类的operator new和operator delete只会处理sizeof(Widget)大小的内存块的分配和释放。这种系列行为不太适用于std::shared_ptr对自定义分配（通过std::allocate_shared）和释放（通过自定义删除器）的支持，因为std::allocate_shared需要的内存总大小不等于动态分配的对象大小，还需要再加上控制块大小。因此，使用make函数去创建重载了operator new和operator delete类的对象是个典型的糟糕想法。
+
+- 与直接使用new相比，std::make_shared在大小和速度上的优势源于std::shared_ptr的控制块与指向的对象放在同一块内存中。当对象的引用计数降为0，对象被销毁（即析构函数被调用）。但是，因为控制块和对象被放在同一块分配的内存块中，直到控制块的内存也被销毁，对象占用的内存才被释放。控制块除了引用计数，还包含簿记信息。引用计数追踪有多少std::shared_ptrs指向控制块，但控制块还有第二个计数，记录多少个std::weak_ptrs指向控制块。第二个引用计数就是weak count。（实际上，weak count的值不总是等于指向控制块的std::weak_ptr的数目，因为库的实现者找到一些方法在weak count中添加附加信息，促进更好的代码产生。为了本条款的目的，我们会忽略这一点，假定weak count的值等于指向控制块的std::weak_ptr的数目。）当一个std::weak_ptr检测它是否过期时（见[Item19](#item19对于共享资源使用-stdsharedptr)），它会检测指向的控制块中的引用计数（而不是weak count）。如果引用计数是0（即对象没有std::shared_ptr再指向它，已经被销毁了），std::weak_ptr就已经过期，否则就没过期。而只要std::weak_ptr引用一个控制块（即weak_count大于零），该控制块必须继续存在，而只要控制块存在，包含它的内存就必须保持分配，通过std::shared_ptr的make函数分配的内存，**直到最后一个std::shared_ptr和最后一个指向它的std::weak_ptr已被销毁，才会释放**（因为整体内存是在一次分配的，而new方法两次分开分配）。
+  如果对象类型非常大，而且销毁最后一个std::shared_ptr和销毁最后一个std::weak_ptr之间的时间很长，那么在销毁对象和释放它所占用的内存之间可能会出现延迟：
+  ```cpp
+  class ReallyBigType { … };
+
+  auto pBigObj =                          //通过std::make_shared
+  std::make_shared<ReallyBigType>();      //创建一个大对象
+                        
+    …           //创建std::shared_ptrs和std::weak_ptrs
+                //指向这个对象，使用它们
+
+    …           //最后一个std::shared_ptr在这销毁，
+                //但std::weak_ptrs还在
+
+    …           //在这个阶段，原来分配给大对象的内存还分配着
+
+    …           //最后一个std::weak_ptr在这里销毁；
+                //控制块和对象的内存被释放
+
+  // 使用new
+  class ReallyBigType { … };              //和之前一样
+
+  std::shared_ptr<ReallyBigType> pBigObj(new ReallyBigType);
+                                        //通过new创建大对象
+
+  …           //像之前一样，创建std::shared_ptrs和std::weak_ptrs
+            //指向这个对象，使用它们
+            
+  …           //最后一个std::shared_ptr在这销毁,
+            //但std::weak_ptrs还在；
+            //对象的内存被释放
+
+  …           //在这阶段，只有控制块的内存仍然保持分配
+
+  …           //最后一个std::weak_ptr在这里销毁；
+            //控制块内存被释放
+  ```
+在不可能或不合适使用std::make_shared的情况下，最好的方法是确保在直接使用new时，在一个不做其他事情的语句中，立即将结果传递到智能指针构造函数。这可以防止编译器生成的代码在使用new和调用管理new出来对象的智能指针的构造函数之间发生异常：
+```cpp
+void processWidget(std::shared_ptr<Widget> spw,     //和之前一样
+                   int priority);
+void cusDel(Widget *ptr);                           //自定义删除器
+processWidget( 									    //和之前一样，
+    std::shared_ptr<Widget>(new Widget, cusDel),    //潜在的内存泄漏！
+    computePriority() 
+);
+
+// 将std::shared_ptr拿出来单独创建，解决问题
+std::shared_ptr<Widget> spw(new Widget, cusDel);
+processWidget(spw, computePriority());  // 正确，但是没优化，见下
+
+// 优化后，由于非安全操作中传递的是右值，为了确保其性能，使用std::move将左值转化成右值
+processWidget(std::move(spw), computePriority());   //高效且异常安全
+```
+
 ## Item21-remember
+- 和直接使用new相比，make函数消除了代码重复，提高了异常安全性。对于std::make_shared和std::allocate_shared，生成的代码更小更快。
+- 不适合使用make函数的情况包括需要指定自定义删除器和希望用花括号初始化。
+- 对于std::shared_ptrs，其他不建议使用make函数的情况包括(1)有自定义内存管理的类；(2)特别关注内存的系统，非常大的对象，以及std::weak_ptrs比对应的std::shared_ptrs活得更久。
 
 ## Item22:当使用 Pimpl 惯用法，请在实现⽂件中定义特殊成员函数
 
