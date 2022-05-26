@@ -472,5 +472,199 @@ processWidget(std::move(spw), computePriority());   //高效且异常安全
 - 对于std::shared_ptrs，其他不建议使用make函数的情况包括(1)有自定义内存管理的类；(2)特别关注内存的系统，非常大的对象，以及std::weak_ptrs比对应的std::shared_ptrs活得更久。
 
 ## Item22:当使用 Pimpl 惯用法，请在实现⽂件中定义特殊成员函数
+Pimpl（pointer to implementation）惯用法将类数据成员替换成一个指向包含具体实现的类（或结构体）的指针，并将放在主类（primary class）的数据成员们移动到实现类（implementation class）去，而这些数据成员的访问将通过指针间接访问。 举个例子，假如有一个类Widget看起来如下：
+```cpp
+class Widget() {                    //定义在头文件“widget.h”
+public:
+    Widget();
+    …
+private:
+    std::string name;
+    std::vector<double> data;
+    Gadget g1, g2, g3;              //Gadget是用户自定义的类型
+};
+```
+因为类Widget的数据成员包含有类型std::string，std::vector和Gadget， 定义有这些类型的头文件在类Widget编译的时候，必须被包含进来，这意味着类Widget的使用者必须要#include <string>，<vector>以及gadget.h。 这些头文件将会增加类Widget使用者的编译时间，并且让这些使用者依赖于这些头文件。 如果一个头文件的内容变了，类Widget使用者也必须要重新编译。 
+如果使用pimpl惯用法：
+```cpp
+// c++98
+class Widget                        //仍然在“widget.h”中
+{
+public:
+    Widget();
+    ~Widget();                      //析构函数在后面会分析
+    …
 
+private:
+    struct Impl;                    //声明一个 实现结构体
+    Impl *pImpl;                    //以及指向它的指针
+};
+```
+这时就不需要引用上述头文件。Impl是个未完成类型，即被声明了但是还没有被实现，能对该类型做的事很少，但是声明它的指针是可以的，所以可以进行上述实现。
+
+Pimpl惯用法可以分为两步：
+1. 第一步，是声明一个数据成员，它是个指针，指向一个未完成类型。
+2. 第二步是动态分配和回收一个对象，该对象包含那些以前在原来的类中的数据成员。
+
+内存分配和回收的代码都写在实现文件里，比如，对于类Widget而言，写在Widget.cpp里:
+```cpp
+#include "widget.h"             //以下代码均在实现文件“widget.cpp”里
+#include "gadget.h"
+#include <string>
+#include <vector>
+// 对于std::string，std::vector和Gadget的头文件的整体依赖依然存在
+// 这些依赖从头文件widget.h（它被所有Widget类的使用者包含，并且对他们可见）移动到了
+// widget.cpp（该文件只被Widget类的实现者包含，并只对他可见）
+
+struct Widget::Impl {           //含有之前在Widget中的数据成员的
+    std::string name;           //Widget::Impl类型的定义
+    std::vector<double> data;
+    Gadget g1,g2,g3;
+};
+
+Widget::Widget()                //为此Widget对象分配数据成员
+: pImpl(new Impl)
+{}
+
+Widget::~Widget()               //销毁数据成员
+{ delete pImpl; }
+```
+在Widget的构造函数和析构函数中完成对pImpl的空间分配和回收。
+
+相比于c++98中使用的原始指针，std::unique_ptr（见[Item18](#item18对于独占资源使用-stduniqueptr)）是最合适的工具。在头文件中用std::unique_ptr替代原始指针:
+```cpp
+// widget.h
+class Widget {                      //在“widget.h”中
+public:
+    Widget();
+    …
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> pImpl;    //使用智能指针而不是原始指针
+};
+
+// widget.cpp
+#include "widget.h"                 //在“widget.cpp”中
+#include "gadget.h"
+#include <string>
+#include <vector>
+
+struct Widget::Impl {               //跟之前一样
+    std::string name;
+    std::vector<double> data;
+    Gadget g1,g2,g3;
+};
+
+Widget::Widget()                    //根据条款21，通过std::make_unique
+: pImpl(std::make_unique<Impl>())   //来创建std::unique_ptr
+{}
+```
+根据智能指针的特性，我们不需要手动编写析构函数，因为std::unique_ptr在自身析构时，会自动销毁它所指向的对象，所以我们自己无需手动销毁任何东西，但是上述代码虽然能够编译，但是在构建Widget时却会报错：
+```cpp
+#include "widget.h"
+
+Widget w;                           //错误！ 一般会提到一些有关于“把sizeof或delete应用到未完成类型上”的信息
+```
+因为对于未完成类型，使用以上操作是禁止的。在w析构的时候会出现问题，我们在类的定义里使用了std::unique_ptr，所以我们没有声明一个析构函数，因为我们并没有任何代码需要写在里面。根据编译器自动生成的特殊成员函数的规则（见 [Item17](./moving2modern_cpp.md)），编译器会自动为我们生成一个析构函数。 在这个析构函数里，编译器会插入一些代码来调用类Widget的数据成员pImpl的析构函数。 pImpl是一个std::unique_ptr<Widget::Impl>，它使用默认删除器，而默认删除器是一个函数，它使用delete来销毁内置于std::unique_ptr的原始指针。然而，在使用delete之前，通常会使默认删除器使用C++11的特性static_assert来确保原始指针指向的类型不是一个未完成类型。当编译器为Widget w的析构生成代码时，它会遇到static_assert检查并且失败，这通常是错误信息的来源。这些错误信息只在对象w销毁的地方出现，因为类Widget的析构函数，正如其他的编译器生成的特殊成员函数一样，是暗含inline属性的。错误信息自身往往指向对象w被创建的那行，因为这行代码明确地构造了这个对象，导致了后面潜在的析构。
+
+所以我们需要把析构函数放到pImpl定义的后面：
+```cpp
+// .h
+class Widget {                  //跟之前一样，在“widget.h”中
+public:
+    Widget();
+    ~Widget();                  //只有声明语句
+    …
+
+private:                        //跟之前一样
+    struct Impl;
+    std::unique_ptr<Impl> pImpl;
+};
+
+// .cpp
+#include "widget.h"                 //跟之前一样，在“widget.cpp”中
+#include "gadget.h"
+#include <string>
+#include <vector>
+
+struct Widget::Impl {               //跟之前一样，定义Widget::Impl
+    std::string name;
+    std::vector<double> data;
+    Gadget g1,g2,g3;
+}
+
+Widget::Widget()                    //跟之前一样
+: pImpl(std::make_unique<Impl>())
+{}
+
+Widget::~Widget()                   //析构函数的定义（译者注：这里高亮）
+{}
+// or
+Widget::~Widget() = default;
+```
+由于定义了析构函数，所以还需要定义移动函数，而默认的移动函数一样存在和析构函数一样的问题，如果放在.h文件中，会因为要销毁原有pImpl指向的对象，所以他们的定义也要放到.cpp中实现：
+```cpp
+// .h
+class Widget {                          //仍然在“widget.h”中
+public:
+    Widget();
+    ~Widget();
+
+    Widget(Widget&& rhs);               //只有声明
+    Widget& operator=(Widget&& rhs);
+    …
+
+private:                                //跟之前一样
+    struct Impl;
+    std::unique_ptr<Impl> pImpl;
+};
+
+//.cpp
+#include <string>                   //跟之前一样，仍然在“widget.cpp”中
+…
+    
+struct Widget::Impl { … };          //跟之前一样
+
+Widget::Widget()                    //跟之前一样
+: pImpl(std::make_unique<Impl>())
+{}
+
+Widget::~Widget() = default;        //跟之前一样
+
+Widget::Widget(Widget&& rhs) = default;             //这里定义
+Widget& Widget::operator=(Widget&& rhs) = default;
+
+// 也需要定义深拷贝函数
+Widget::Widget(const Widget& rhs)   //拷贝构造函数
+: pImpl(std::make_unique<Impl>(*rhs.pImpl))
+{}
+
+Widget& Widget::operator=(const Widget& rhs)    //拷贝operator=
+{
+    *pImpl = *rhs.pImpl;
+    return *this;
+}
+```
+如果使用std::shared_ptr就不会有这样的问题：
+```cpp
+class Widget {                      //在“widget.h”中
+public:
+    Widget();
+    …                               //没有析构函数和移动操作的声明
+
+private:
+    struct Impl;
+    std::shared_ptr<Impl> pImpl;    //用std::shared_ptr
+};                                  //而不是std::unique_ptr
+Widget w1;
+auto w2(std::move(w1));     //移动构造w2
+w1 = std::move(w2);         //移动赋值w1
+```
+这些都能编译，并且工作地如我们所望：w1将会被默认构造，它的值会被移动进w2，随后值将会被移动回w1，然后两者都会被销毁（因此导致指向的Widget::Impl对象一并也被销毁）。
+
+std::unique_ptr和std::shared_ptr在pImpl指针上的表现上的区别的深层原因在于，他们支持自定义删除器的方式不同。 对std::unique_ptr而言，**删除器的类型是这个智能指针的一部分**，这让编译器有可能生成更小的运行时数据结构和更快的运行代码。 这种更高效率的后果之一就是std::unique_ptr指向的类型，在编译器的生成特殊成员函数（如析构函数，移动操作）被调用时，必须已经是一个完成类型。 而对std::shared_ptr而言，**删除器的类型不是该智能指针的一部分**，这让它会生成更大的运行时数据结构和稍微慢点的代码，但是当编译器生成的特殊成员函数被使用的时候，指向的对象不必是一个完成类型。
 ## Item22-remember
+- Pimpl惯用法通过减少在类实现和类使用者之间的编译依赖来减少编译时间。
+- 对于std::unique_ptr类型的pImpl指针，需要在头文件的类里声明特殊的成员函数，但是在实现文件里面来实现他们。即使是编译器自动生成的代码可以工作，也要这么做。
+- 以上的建议只适用于std::unique_ptr，不适用于std::shared_ptr。
