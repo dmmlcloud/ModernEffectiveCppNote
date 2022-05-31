@@ -587,19 +587,487 @@ public:
 
 ## Item26-remember
 
-## Item27:
+- 对通用引用形参的函数进行重载，通用引用函数的调用机会几乎总会比你期望的多得多。
+- 完美转发构造函数是糟糕的实现，因为对于 non-const 左值，它们比拷贝构造函数而更匹配，而且会劫持派生类对于基类的拷贝和移动构造函数的调用。
+
+## Item27:熟悉通用引用重载的替代方法
+
+通用引用重载的代替方法：
+
+- 放弃重载： 将 Item26 中的 logAndAdd 函数，分别改名为 logAndAddName 和 logAndAddNameIdx。但是，这种方式不能用在第二个例子，Person 构造函数中，因为构造函数的名字被语言固定了（即构造函数名与类名相同）。此外谁愿意放弃重载呢？
+- 传递 const T&：将传递通用引用替换为传递 lvalue-refrence-to-const，即放弃一些效率来保证行为的正确
+- 传值：通常在不增加复杂性的情况下提高性能的一种方法是，将按传引用形参替换为按值传递，这是违反直觉的。该设计遵循[Item41](./tweaks.md)中给出的建议，即在你知道要拷贝时就按值传递
+
+  ```cpp
+  class Person {
+  public:
+      explicit Person(std::string n)  //代替T&&构造函数，
+      : name(std::move(n)) {}         //std::move的使用见条款41
+
+      explicit Person(int idx)        //同之前一样
+      : name(nameFromIdx(idx)) {}
+      …
+
+  private:
+    std::string name;
+  };
+  ```
+
+- 使用 tag dispatch:传递 lvalue-reference-to-const 以及按值传递都不支持完美转发。如果使用通用引用的动机是完美转发，我们就只能使用通用引用了，没有其他选择。但是又不想放弃重载。
+
+  实际上并不难。通过查看所有重载的所有形参以及调用点的所有传入实参，然后选择最优匹配的函数——考虑所有形参/实参的组合。通用引用通常提供了最优匹配，**但是如果通用引用是包含其他非通用引用的形参列表的一部分**，例如：
+
+  ```cpp
+  template <typename T>
+  void example(T&& name, int id) {
+      ...
+  }
+  ```
+
+  则非通用引用形参的较差匹配会使有一个通用引用的重载版本不被运行，例如：
+
+  ```cpp
+  std::string name = "test";
+  std::string id = "idTest";
+  example(name, id) // 不会匹配上述函数
+  ```
+
+  这就是 tag dispatch 方法的基础。对于[Item26](#item26-避免在通用引用上重载)中的 logAndAdd 函数，对于引入 int 会出现错误，这个条款的目标是避免它。不通过重载，我们重新实现 logAndAdd 函数分拆为两个函数，一个针对整型值，一个针对其他。logAndAdd 本身接受所有实参类型，包括整型和非整型即通用引用。这两个真正执行逻辑的函数命名为 logAndAddImpl，即我们使用重载 logAndAddImpl。其中一个函数接受通用引用。所以我们同时使用了重载和通用引用。但是每个函数接受第二个形参，表征传入的实参是否为整型。这第二个形参可以帮助我们避免陷入到[Item26](#item26-避免在通用引用上重载)中提到的麻烦中，因为我们将其安排为第二个实参决定选择哪个重载函数。
+
+  ```cpp
+  template<typename T>
+  void logAndAdd(T&& name)
+  {
+      logAndAddImpl(std::forward<T>(name),
+                    std::is_integral<T>());   //不那么正确
+  }
+  ```
+
+  这个函数转发它的形参给 logAndAddImpl 函数，但是多传递了一个表示形参 T 是否为整型的实参。但是如同[Item28](#item28理解引用折叠)中说明，如果左值实参传递给通用引用 name，对 T 类型推断会得到左值引用。所以如果左值 int 被传入 logAndAdd，T 将被推断为 int&。这不是一个整型类型，因为引用不是整型类型。这意味着 std::is_integral<T>对于任何左值实参返回 false，即使确实传入了整型值。C++标准库有一个 type trait（参见[treat](./traits.md)），std::remove_reference，函数名字就说明做了我们希望的：移除类型的引用说明符。所以正确实现的代码应该是这样：
+
+  ```cpp
+  template<typename T>
+  void logAndAdd(T&& name)
+  {
+      logAndAddImpl(
+          std::forward<T>(name),
+          std::is_integral<typename std::remove_reference<T>::type>()
+      );
+  }
+  ```
+
+  对于 logAndAddImpl，有两个重载函数，第一个仅用于非整型类型（即 std::is_integral<typename std::remove_reference<T>::type>是 false）：
+
+  ```cpp
+  template<typename T>                            //非整型实参：添加到全局数据结构中
+  void logAndAddImpl(T&& name, std::false_type)
+  {
+      auto now = std::chrono::system_clock::now();
+      log(now, "logAndAdd");
+      names.emplace(std::forward<T>(name));
+  }
+  ```
+
+  概念上，logAndAdd 传递一个布尔值给 logAndAddImpl 表明是否传入了一个整型类型，但是 true 和 false 是运行时值，我们需要使用重载决议——编译时决策——来选择正确的 logAndAddImpl 重载。这意味着我们需要一个类型对应 true，另一个不同的类型对应 false。这个需要是经常出现的，所以标准库提供了这样两个命名 std::true_type 和 std::false_type。logAndAdd 传递给 logAndAddImpl 的实参是个对象，如果 T 是整型，对象的类型就继承自 std::true_type，反之继承自 std::false_type。最终的结果就是，当 T 不是整型类型时，这个 logAndAddImpl 重载是个可供调用的候选者。
+
+  第二个重载覆盖了相反的场景：当 T 是整型类型。在这个场景中，logAndAddImpl 简单找到对应传入索引的名字，然后传递给 logAndAdd：
+
+  ```cpp
+  std::string nameFromIdx(int idx);           //与条款26一样，整型实参：查找名字并用它调用logAndAdd
+  void logAndAddImpl(int idx, std::true_type) //译者注：高亮std::true_type
+  {
+    logAndAdd(nameFromIdx(idx));
+  }
+  ```
+
+  在这个设计中，类型 std::true_type 和 std::false_type 是“标签”（tag），其唯一目的就是强制重载解析按照我们的想法来执行。注意到我们甚至没有对这些参数进行命名。他们在运行时毫无用处，事实上我们希望编译器可以意识到这些标签形参没被使用，然后在程序执行时优化掉它们。（至少某些时候有些编译器会这样做。）通过创建标签对象，在 logAndAdd 内部将重载实现函数的调用“分发”（dispatch）给正确的重载。
+
+- 约束使用通用引用的模板
+  tag dispatch 的关键是存在单独一个函数（没有重载）给客户端 API。这个单独的函数分发给具体的实现函数。创建一个没有重载的分发函数通常是容易的，但是[Item26](#item26-避免在通用引用上重载)中所述第二个问题案例是 Person 类的完美转发构造函数，是个例外。编译器可能会自行生成拷贝和移动构造函数，所以即使你只写了一个构造函数并在其中使用 tag dispatch，有一些对构造函数的调用也被编译器生成的函数处理，绕过了分发机制。
+
+  实际上，真正的问题不是编译器生成的函数会绕过 tag dispatch 设计，而是不总会绕过去。你希望类的拷贝构造函数总是处理该类型的左值拷贝请求，但是如同[Item26](#item26-避免在通用引用上重载)中所述，提供具有通用引用的构造函数，会使通用引用构造函数在拷贝 non-const 左值时被调用（而不是拷贝构造函数）。且当一个基类声明了完美转发构造函数，派生类实现自己的拷贝和移动构造函数时会调用那个完美转发构造函数，尽管正确的行为是调用基类的拷贝或者移动构造。
+
+  这种情况，采用通用引用的重载函数通常比期望的更加贪心，虽然不像单个分派函数一样那么贪心，而又不满足使用 tag dispatch 的条件，所以需要 std::enable_if。std::enable_if 可以给你提供一种强制编译器执行行为的方法，像是特定模板不存在一样。这种模板被称为被禁止（disabled）。默认情况下，所有模板是启用的（enabled），但是使用 std::enable_if 可以使得仅在 std::enable_if 指定的条件满足时模板才启用，在这个例子中，我们只在传递的类型不是 Person 时使用 Person 的完美转发构造函数。如果传递的类型是 Person，我们要禁止完美转发构造函数（即让编译器忽略它），因为这会让拷贝或者移动构造函数处理调用，这是我们想要使用 Person 初始化另一个 Person 的初衷。
+
+  ```cpp
+  class Person {
+  public:
+      template<typename T,
+        typename = typename std::enable_if<condition>::type>   //“SFINAE”技术
+      explicit Person(T&& n);
+    …
+  };
+  ```
+
+  现在需要确定在什么 condition 下运行该模板，这里我们想表示的条件是确认 T 不是 Person 类型，即模板构造函数应该在 T 不是 Person 类型的时候启用。多亏了 type trait 可以确定两个对象类型是否相同（std::is_same），看起来我们需要的就是!std::is_same<Person, T>::value（注意语句开始的!，需要的是不相同）。这很接近我们想要的了，但是不完全正确，因为如同[Item28](#item28理解引用折叠)中所述，使用左值来初始化通用引用的话会推导成左值引用，比如这个代码:
+
+  ```cpp
+  Person p("Nancy");
+  auto cloneOfP(p);       //用左值初始化
+  ```
+
+  在通用模板中 T 会被推导为 Person&，Person 和 Person&类型是不同的，std::is_same 的结果也反映了：std::is_same<Person, Person&>::value 是 false。所以在比较 T 的类型的时候需要考虑：
+
+  - 是否是个引用。对于决定是否通用引用构造函数启用的目的来说，Person，Person&，Person&&都是跟 Person 一样的。
+  - 是不是 const 或者 volatile。如上所述，const Person，volatile Person ，const volatile Person 也是跟 Person 一样的。
+    这意味着我们需要一种方法消除对于 T 的引用，const，volatile 修饰。再次，标准库提供了这样功能的 type trait，就是 std::decay。std::decay<T>::value 与 T 是相同的，只不过会移除引用和 cv 限定符（cv-qualifiers，即 const 或 volatile 标识符）的修饰（std::decay 如同其名一样，可以将数组或者函数退化成指针）。所以该条件可以写成：
+
+  ```cpp
+  !std::is_same<Person, typename std::decay<T>::type>::value
+  ```
+
+  注意 std::decay<T>::type 需要加上 typename，正如[Item9](./moving2modern_cpp.md)中所说，std::decay<T>::type 的类型取决于模板形参 T，所以上述例子应该写成：
+
+  ```cpp
+  class Person {
+  public:
+      template<
+          typename T,
+          typename = typename std::enable_if<
+                         !std::is_same<Person,
+                                       typename std::decay<T>::type
+                                      >::value
+                     >::type
+      >
+      explicit Person(T&& n);
+      …
+  };
+  ```
+
+  在上面的声明中，使用 Person 初始化一个 Person——无论是左值还是右值，const 还是 non-const，volatile 还是 non-volatile——都不会调用到通用引用构造函数。
+  [Item26](#item26-避免在通用引用上重载)中还有一个问题需要解决，假定从 Person 派生的类以常规方式实现拷贝和移动操作：：
+
+  ```cpp
+  class SpecialPerson: public Person {
+  public:
+      SpecialPerson(const SpecialPerson& rhs) //拷贝构造函数，调用基类的
+      : Person(rhs)                           //完美转发构造函数！
+      { … }
+
+      SpecialPerson(SpecialPerson&& rhs)      //移动构造函数，调用基类的
+      : Person(std::move(rhs))                //完美转发构造函数！
+      { … }
+
+      …
+  };
+  ```
+
+  我们拷贝或者移动一个 SpecialPerson 对象时，我们希望调用基类对应的拷贝和移动构造函数，来拷贝或者移动基类部分，但是这里，我们将 SpecialPerson 传递给基类的构造函数，因为 SpecialPerson 和 Person 类型不同（在应用 std::decay 后也不同），所以完美转发构造函数是启用的，会实例化为精确匹配 SpecialPerson 实参的构造函数。相比于派生类到基类的转化——这个转化对于在 Person 拷贝和移动构造函数中把 SpecialPerson 对象绑定到 Person 形参非常重要，生成的精确匹配是更优的，所以这里的代码，拷贝或者移动 SpecialPerson 对象就会调用 Person 类的完美转发构造函数来执行基类的部分。
+
+  现在我们意识到不只是禁止 Person 类型启用模板构造函数，而是禁止 Person**以及任何派生自 Person**的类型启用模板构造函数
+  std::is_base_of<T1, T2>是 true 就表示 T2 派生自 T1。类型也可被认为是从他们自己派生，所以 std::is_base_of<T, T>::value 总是 true。所以使用 std::is_base_of 代替 std::is_same 就可以了：
+
+  ```cpp
+  class Person { // C++11
+  public:
+      template<
+          typename T,
+          typename = typename std::enable_if<
+                         !std::is_base_of<Person,
+                                          typename std::decay<T>::type
+                                         >::value
+                     >::type
+      >
+      explicit Person(T&& n);
+      …
+  };
+
+  class Person  {                                         //C++14
+  public:
+      template<
+          typename T,
+          typename = std::enable_if_t<                    //这儿更少的代码
+                         !std::is_base_of<Person,
+                                          std::decay_t<T> //还有这儿
+                                         >::value
+                     >                                    //还有这儿
+      >
+      explicit Person(T&& n);
+      …
+  };
+
+  // 处理整型非整型
+  class Person {
+  public:
+      template<
+          typename T,
+          typename = std::enable_if_t<
+              !std::is_base_of<Person, std::decay_t<T>>::value
+              &&
+              !std::is_integral<std::remove_reference_t<T>>::value
+          >
+      >
+      explicit Person(T&& n)          //对于std::strings和可转化为
+      : name(std::forward<T>(n))      //std::strings的实参的构造函数
+      { … }
+
+      explicit Person(int idx)        //对于整型实参的构造函数
+      : name(nameFromIdx(idx))
+      { … }
+
+      …                               //拷贝、移动构造函数等
+
+  private:
+      std::string name;
+  };
+  ```
+
+- 折中：本条款提到的前三个技术——放弃重载、传递 const T&、传值——在函数调用中指定每个形参的类型。后两个技术——tag dispatch 和限制模板适用范围——使用完美转发，因此不需要指定形参类型。这一基本决定（是否指定类型）有一定后果。
+  通常，完美转发更有效率，因为它避免了仅仅去为了符合形参声明的类型而创建临时对象。在 Person 构造函数的例子中，完美转发允许将“Nancy”这种字符串字面量转发到 Person 内部的 std::string 的构造函数，不使用完美转发的技术则会从字符串字面值创建一个临时 std::string 对象，来满足 Person 构造函数指定的形参要求。
+
+  但是完美转发也有缺点。即使某些类型的实参可以传递给接受特定类型的函数，也无法完美转发。[Item30](#item30熟悉完美转发失败的情况)中探索了完美转发失败的例子。
+
+  完美转发的第二个问题是当客户传递无效参数时错误消息的可理解性例如假如客户传递了一个由 char16_t（一种 C++11 引入的类型表示 16 位字符）而不是 char（std::string 包含的）组成的字符串字面值来创建一个 Person 对象：
+
+  ```cpp
+  Person p(u"test");
+  ```
+
+  使用本条款中讨论的前三种方法，编译器将看到可用的采用 int 或者 std::string 的构造函数，它们或多或少会产生错误消息，表示没有可以从 const char16_t[12]转换为 int 或者 std::string 的方法。但是，基于完美转发的方法，const char16_t 不受约束地绑定到构造函数的形参。从那里将转发到 Person 的 std::string 数据成员的构造函数，在这里，调用者传入的内容（const char16_t 数组）与所需内容（std::string 构造函数可接受的类型）发生的不匹配会被发现。（编译器产生大量错误）
+
+  在这个例子中，通用引用仅被转发一次（从 Person 构造函数到 std::string 构造函数），但是更复杂的系统中，在最终到达判断实参类型是否可接受的地方之前，通用引用会被多层函数调用转发。通用引用被转发的次数越多，产生的错误消息偏差就越大。
+
+  在 Person 这个例子中，我们知道完美转发函数的通用引用形参要作为 std::string 的初始化器，所以我们可以用 static_assert 来确认它可以起这个作用。std::is_constructible 这个 type trait 执行编译时测试，确定一个类型的对象是否可以用另一个不同类型（或多个类型）的对象（或多个对象）来构造，所以代码可以这样：
+
+  ```cpp
+  class Person {
+  public:
+      template<                       //同之前一样
+          typename T,
+          typename = std::enable_if_t<
+              !std::is_base_of<Person, std::decay_t<T>>::value
+              &&
+              !std::is_integral<std::remove_reference_t<T>>::value
+          >
+      >
+      explicit Person(T&& n)
+      : name(std::forward<T>(n))
+      {
+          //断言可以用T对象创建std::string
+          static_assert(
+          std::is_constructible<std::string, T>::value,
+          "Parameter n can't be used to construct a std::string"
+          );
+
+          …               //通常的构造函数的工作写在这
+
+      }
+
+      …                   //Person类的其他东西（同之前一样）
+  };
+  ```
+
+  如果客户代码尝试使用无法构造 std::string 的类型创建 Person，会导致指定的错误消息。不幸的是，在这个例子中，static_assert 在构造函数体中，但是转发的代码作为成员初始化列表的部分在检查之前。所以我使用的编译器，结果是由 static_assert 产生的清晰的错误消息在常规错误消息（多达 160 行以上那个）后出现。
 
 ## Item27-remembe
 
-## Item28:
+- 通用引用和重载的组合替代方案包括使用不同的函数名，通过 lvalue-reference-to-const 传递形参，按值传递形参，使用 tag dispatch。
+- 通过 std::enable_if 约束模板，允许组合通用引用和重载使用，但它也控制了编译器在哪种条件下才使用通用引用重载。
+- 通用引用参数通常具有高效率的优势，但是可用性就值得斟酌。
+
+## Item28:理解引用折叠
+
+对通用引用和左值/右值编码的观察意味着对于这个模板，不管传给 param 的实参是左值还是右值，模板形参 T 都会编码。
+
+```cpp
+template<typename T>
+void func(T&& param);
+```
+
+根据[Item1](./deducing_types.md)当左值实参被传入时，T 被推导为左值引用。当右值被传入时，T 被推导为非引用。（请注意不对称性：左值被编码为左值引用，右值被编码为非引用。）因此：
+
+```cpp
+Widget widgetFactory();     //返回右值的函数
+Widget w;                   //一个变量（左值）
+func(w);                    //用左值调用func；T被推导为Widget&
+func(widgetFactory());      //用右值调用func；T被推导为Widgetint x;
+…
+auto& & rx = x;             //错误！不能声明引用的引用
+```
+
+现在考虑一下，当一个左值传递给通用模板时会发生什么：
+
+```cpp
+template<typename T>
+void func(T&& param);       //同之前一样
+
+func(w);                    //用左值调用func；T被推导为Widget&
+
+void func(Widget& && param); // 没有报错
+void func(Widget& param); // 编译器会把它变成这样
+```
+
+这就是**引用折叠**，编译器禁止你声明引用的引用，但是编译器会在特定的上下文中产生这些，模板实例化就是其中一种情况。当编译器生成引用的引用时，引用折叠指导下一步发生什么。存在两种类型的引用（左值和右值），所以有四种可能的引用组合（左值的左值，左值的右值，右值的右值，右值的左值）。如果一个上下文中允许引用的引用存在（比如，模板的实例化），引用根据规则折叠为单个引用：
+
+- 如果任一引用为左值引用，则结果为左值引用。否则（即，如果引用都是右值引用），结果为右值引用。
+  在我们上面的例子中，将推导类型 Widget&替换进模板 func 会产生对左值引用的右值引用，然后引用折叠规则告诉我们结果就是左值引用。引用折叠是 std::forward 工作的一种关键机制。就像[Item25](#item25对右值引用使用-stdmove对通用引用使用-stdforward)中解释的一样，std::forward 应用在通用引用参数上，所以经常能看到这样使用：
+
+```cpp
+template<typename T>
+void f(T&& fParam)
+{
+    …                                   //做些工作
+    someFunc(std::forward<T>(fParam));  //转发fParam到someFunc
+}
+```
+
+因为 fParam 是通用引用，我们知道类型参数 T 的类型根据 f 被传入实参（即用来实例化 fParam 的表达式）是左值还是右值来编码。std::forward 的作用是当且仅当传给 f 的实参为右值时，即 T 为非引用类型，才将 fParam（左值）转化为一个右值。所以 std::forward 可以这样实现：
+
+```cpp
+template<typename T>                                //在std命名空间
+T&& forward(typename
+                remove_reference<T>::type& param)
+{
+    return static_cast<T&&>(param);
+}
+```
+
+假设传入到 f 的实参是 Widget 的左值类型。T 被推导为 Widget&，然后调用 std::forward 将实例化为 std::forward<Widget&>。Widget&带入到上面的 std::forward 的实现中：
+
+```cpp
+Widget& && forward(remove_reference<Widget&>::type& param) {
+    return static_cast<Widget& &&> (param);
+}
+// 因为引用折叠和remove_reference<Widget&> = Widget
+// 即为:
+Widget& forward(Widget& param) {
+    return static_cast<Widget&> (param);
+}
+```
+
+左值实参被传入到函数模板 f 时，std::forward 被实例化为接受和返回左值引用。内部的转换不做任何事，因为 param 的类型已经是 Widget&，所以转换没有影响。左值实参传入 std::forward 会返回左值引用。通过定义，左值引用就是左值，因此将左值传递给 std::forward 会返回左值，就像期待的那样。
+
+现在假设一下，传递给 f 的实参是一个 Widget 的右值。在这个例子中，f 的类型参数 T 的推导类型就是 Widget。f 内部的 std::forward 调用因此为 std::forward<Widget>，std::forward 实现中把 T 换为 Widget 得到：
+
+```cpp
+Widget&& forward(typename
+                     remove_reference<Widget>::type& param)
+{ return static_cast<Widget&&>(param); }
+// 即为
+Widget&& forward(Widget& param)
+{ return static_cast<Widget&&>(param); }
+```
+
+从函数返回的右值引用被定义为右值，因此在这种情况下，std::forward 会将 f 的形参 fParam（左值）转换为右值。最终结果是，传递给 f 的右值参数将作为右值转发给 someFunc，正是想要的结果。
+在 C++14 中，std::remove_reference_t 的存在使得实现变得更简洁：
+
+```cpp
+template<typename T>                        //C++14；仍然在std命名空间
+T&& forward(remove_reference_t<T>& param)
+{
+  return static_cast<T&&>(param);
+}
+```
+
+引用折叠发生在四种情况下:
+
+- 第一，也是最常见的就是模板实例化。
+- 第二，是 auto 变量的类型生成，具体细节类似于模板，因为 auto 变量的类型推导基本与模板类型推导雷同（参见 Item2）。考虑本条款前面的例子：
+
+  ```cpp
+  Widget widgetFactory();     //返回右值的函数
+  Widget w;                   //一个变量（左值）
+  func(w);                    //用左值调用func；T被推导为Widget&
+  func(widgetFactory());      //用右值调用func；T被推导为Widget
+  auto&& w1 = w;
+  // 用一个左值初始化w1，因此为auto推导出类型Widget&。把Widget&代回w1声明中的auto里，产生了引用的引用
+  Widget& && w1 = w;
+  // 即
+  Widget& w1 = w
+
+  auto&& w2 = widgetFactory();
+  // 使用右值初始化w2，为auto推导出非引用类型Widget。把Widget代入auto得到
+  Widget&& w2 = widgetFactory();
+  ```
+
+  现在我们真正理解了[Item24](#item24区分通用引用与右值引用)中引入的通用引用。通用引用不是一种新的引用，它实际上是满足以下两个条件下的右值引用：
+
+  - 类型推导区分左值和右值。T 类型的左值被推导为 T&类型，T 类型的右值被推导为 T。
+  - 发生引用折叠。
+
+- 第三种情况是 typedef 和别名声明的产生和使用中（参见[Item9](./moving2modern_cpp.md)）。如果，在创建或者评估 typedef 过程中出现了引用的引用，则引用折叠就会起作用。举例子来说，假设我们有一个 Widget 的类模板，该模板具有右值引用类型的嵌入式 typedef：
+  ```cpp
+  template<typename T>
+  class Widget {
+  public:
+      typedef T&& RvalueRefToT;
+      …
+  };
+  // 使用左值引用初始化
+  Widget<int&> w;
+  // Widget模板中把T替换为int&得到：
+  typedef int& && RvalueRefToT;
+  // 即
+  typedef int& RvalueRefToT;
+  ```
+  这清楚表明我们为 typedef 选择的名字可能不是我们希望的那样：当使用左值引用类型实例化 Widget 时，RvalueRefToT 是左值引用的 typedef。（希望的是右值引用因为 T&&）
+  - 最后一种引用折叠发生的情况是，decltype 使用的情况。如果在分析 decltype 期间，出现了引用的引用，引用折叠规则就会起作用
 
 ## Item28-rememberr
 
-## Item29:
+- 引用折叠发生在四种情况下：模板实例化，auto 类型推导，typedef 与别名声明的创建和使用，decltype。
+- 当编译器在引用折叠环境中生成了引用的引用时，结果就是单个引用。有左值引用折叠结果就是左值引用，否则就是右值引用。
+- 通用引用就是在特定上下文的右值引用，上下文是通过类型推导区分左值还是右值，并且发生引用折叠的那些地方。
+
+## Item29:认识移动操作的缺点
+
+C++11 倾向于为缺少移动操作的类生成它们，但是只有在没有声明复制操作，移动操作，或析构函数的类中才会生成移动操作（参考[Item17](./moving2modern_cpp.md)）。数据成员或者某类型的基类禁止移动操作（比如通过 delete 移动操作，参考[Item11](./moving2modern_cpp.md)），编译器不生成移动操作的支持。对于没有明确支持移动操作的类型，并且不符合编译器默认生成的条件的类，没有理由期望 C++11 会比 C++98 进行任何性能上的提升。
+
+即使显式支持了移动操作，结果可能也没有你希望的那么好。比如，所有 C++11 的标准库容器都支持了移动操作，但是认为移动所有容器的开销都非常小是个错误。对于某些容器来说，压根就不存在开销小的方式来移动它所包含的内容。对另一些容器来说，容器的开销真正小的移动操作会有一些容器元素不能满足的注意条件。
+
+考虑一下 std::array，这是 C++11 中的新容器。std::array 本质上是具有 STL 接口的内置数组。这与其他标准容器将内容存储在堆内存不同。存储具体数据在堆内存的容器，本身只保存了指向堆内存中容器内容的指针（真正实现当然更复杂一些，但是基本逻辑就是这样）。这个指针的存在使得在常数时间移动整个容器成为可能，只需要从源容器拷贝保存指向容器内容的指针到目标容器，然后将源指针置为空指针就可以了：
+
+```cpp
+std::vector<Widget> vm1;
+
+//把数据存进vw1
+…
+
+//把vw1移动到vw2。以常数时间运行。只有vw1和vw2中的指针被改变
+auto vm2 = std::move(vm1);
+```
+
+![](./vecotr_move.png)
+std::array 没有这种指针实现，数据就保存在 std::array 对象中：
+
+```cpp
+std::array<Widget, 10000> aw1;
+
+//把数据存进aw1
+…
+
+//把aw1移动到aw2。以线性时间运行。aw1中所有元素被移动到aw2
+auto aw2 = std::move(aw1);
+```
+
+![](./array_move.png)
+
+注意 aw1 中的元素被移动到了 aw2 中。假定 Widget 类的移动操作比复制操作快，移动 Widget 的 std::array 就比复制要快。所以 std::array 确实支持移动操作。但是使用 std::array 的移动操作还是复制操作都将花费线性时间的开销，因为每个容器中的元素终归需要拷贝或移动一次，这与“移动一个容器就像操作几个指针一样方便”的含义相去甚远。
+
+另一方面，std::string 提供了常数时间的移动操作和线性时间的复制操作。这听起来移动比复制快多了，但是可能不一定。许多字符串的实现采用了小字符串优化（small string optimization，SSO）。“小”字符串（比如长度小于 15 个字符的）存储在了 std::string 的缓冲区中，并没有存储在堆内存，移动这种存储的字符串并不必复制操作更快。
+
+SSO 的动机是大量证据表明，短字符串是大量应用使用的习惯。使用内存缓冲区存储而不分配堆内存空间，是为了更好的效率。然而这种内存管理的效率导致移动的效率并不必复制操作高。
+
+即使对于支持快速移动操作的类型，某些看似可靠的移动操作最终也会导致复制。[Item14](./moving2modern_cpp.md)解释了原因，标准库中的某些容器操作提供了强大的异常安全保证，确保依赖那些保证的 C++98 的代码在升级到 C++11 且仅当移动操作不会抛出异常，从而可能替换操作时，不会不可运行。结果就是，即使类提供了更具效率的移动操作，而且即使移动操作更合适（比如源对象是右值），编译器仍可能被迫使用复制操作，因为移动操作没有声明 noexcept。
+
+因此，存在几种情况，C++11 的移动语义并无优势：
+
+- 没有移动操作：要移动的对象没有提供移动操作，所以移动的写法也会变成复制操作。
+- 移动不会更快：要移动的对象提供的移动操作并不比复制速度更快。
+- 移动不可用：进行移动的上下文要求移动操作不会抛出异常，但是该操作没有被声明为 noexcept。
+
+值得一提的是，还有另一个场景，会使得移动并没有那么有效率：
+
+- 源对象是左值：除了极少数的情况外（例如[Item25](#item25对右值引用使用-stdmove对通用引用使用-stdforward)，在通用引用模板中使用 std::move（会导致原来的左值变成未定义的值）），只有右值可以作为移动操作的来源。
+
+编写模板代码，因为你不清楚你处理的具体类型是什么。在这种情况下，你必须像出现移动语义之前那样，像在 C++98 里一样保守地去复制对象。“不稳定的”代码也是如此，即那些由于经常被修改导致类型特性变化的源代码。
 
 ## Item29-remember
 
-## Item30:
+- 假定移动操作不存在，成本高，未被使用。
+- 在已知的类型或者支持移动语义的代码中，就不需要上面的假设。
+
+## Item30:熟悉完美转发失败的情况
 
 ## Item30-remember
 
