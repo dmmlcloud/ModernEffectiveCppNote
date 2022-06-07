@@ -192,11 +192,262 @@ auto fut = reallyAsync(f);
 
 ## Item 37:从各个方面使得 std::threads unjoinable
 
+每个 std::thread 对象处于两个状态之一：**可结合的**（joinable）或者**不可结合的**（unjoinable）。
+
+joinable 的 std::thread 对应于正在运行或者可能要运行的异步执行线程。比如，对应于一个阻塞的（blocked）或者等待调度的线程的 std::thread 是可结合的，对应于运行结束的线程的 std::thread 也可以认为是可结合的。
+
+不可结合的 std::thread 正如所期待：一个不是可结合状态的 std::thread。不可结合的 std::thread 对象包括：
+
+- 默认构造的 std::threads。这种 std::thread 没有函数执行，因此没有对应到底层执行线程上。
+- 已经被移动走的 std::thread 对象。移动的结果就是一个 std::thread 原来对应的执行线程现在对应于另一个 std::thread。
+- 已经被 join 的 std::thread 。在 join 之后，std::thread 不再对应于已经运行完了的执行线程。
+- 已经被 detach 的 std::thread 。detach 断开了 std::thread 对象与执行线程之间的连接。
+
+std::thread 的可结合性如此重要的原因之一就是**当可结合的线程的析构函数被调用，程序执行会终止**。比如，假定有一个函数 doWork，使用一个过滤函数 filter，一个最大值 maxVal 作为形参。doWork 检查是否满足计算所需的条件，然后使用在 0 到 maxVal 之间的通过过滤器的所有值进行计算。如果进行过滤非常耗时，并且确定 doWork 条件是否满足也很耗时，则将两件事并发计算是很合理的。
+
+我们希望为此采用基于任务的设计（参见 [Item35](#item-35优先考虑基于任务的编程而非基于线程的编程)），但是假设我们希望设置做过滤的线程的优先级。Item35 阐释了那需要线程的原生句柄，只能通过 std::thread 的 API 来完成；基于任务的 API（比如 future）做不到。所以最终采用基于线程而不是基于任务。
+
+```cpp
+constexpr auto tenMillion = 10000000;           //constexpr见条款15
+constexpr auto tenMillion = 10'000'000;         //C++14
+
+bool doWork(std::function<bool(int)> filter,    //返回计算是否执行；
+            int maxVal = tenMillion)            //std::function见条款2
+{
+    std::vector<int> goodVals;                  //满足filter的值
+
+    std::thread t([&filter, maxVal, &goodVals]  //填充goodVals
+                  {
+                      for (auto i = 0; i <= maxVal; ++i)
+                          { if (filter(i)) goodVals.push_back(i); }
+                  });
+
+    auto nh = t.native_handle();                //使用t的原生句柄
+    …                                           //来设置t的优先级
+
+    if (conditionsAreSatisfied()) {
+        t.join();                               //等t完成
+        performComputation(goodVals);
+        return true;                            //执行了计算
+    }
+    return false;                               //未执行计算
+}
+```
+
+在开始运行之后设置 t 的优先级就太晚了，所以更好的设计是在挂起状态时开始 t（这样可以在执行任何计算前调整优先级[Item39](#item-39考虑对于单次事件通信使用-void)）。
+
+返回 doWork。如果 conditionsAreSatisfied()返回 true，没什么问题，但是如果返回 false 或者抛出异常，在 doWork 结束调用 t 的析构函数时，std::thread 对象 t 会是可结合的。这造成程序执行中止。
+
+如果不在这里进行析构，另外两种方式会更糟：
+
+- 隐式 join 。这种情况下，std::thread 的析构函数将等待其底层的异步执行线程完成。这听起来是合理的，但是可能会导致难以追踪的异常表现。比如，如果 conditonAreStatisfied()已经返回了 false，doWork 继续等待过滤器应用于所有值就很违反直觉。
+
+- 隐式 detach 。这种情况下，std::thread 析构函数会分离 std::thread 与其底层的线程。底层线程继续运行。听起来比 join 的方式好，但是可能导致更严重的调试问题。比如，在 doWork 中，goodVals 是通过引用捕获的局部变量。它也被 lambda 修改（通过调用 push_back）。假定，lambda 异步执行时，conditionsAreSatisfied()返回 false。这时，doWork 返回，同时局部变量（包括 goodVals）被销毁。栈被弹出，并在 doWork 的调用点继续执行线程。
+
+  调用点之后的语句有时会进行其他函数调用，并且至少一个这样的调用可能会占用曾经被 doWork 使用的栈位置。我们调用那么一个函数 f。当 f 运行时，doWork 启动的 lambda 仍在继续异步运行。**该 lambda 可能在栈内存上调用 push_back，该内存曾属于 goodVals，但是现在是 f 的栈内存的某个位置**。这意味着对 f 来说，内存被自动修改了！想象一下调试的时候“乐趣”吧。
+
+标准委员会认为，销毁可结合的线程如此可怕以至于实际上禁止了它
+
+这使你有责任确保使用 std::thread 对象时，在所有的路径上超出定义所在的作用域时都是不可结合的。但是覆盖每条路径可能很复杂，可能包括自然执行通过作用域，或者通过 return，continue，break，goto 或异常跳出作用域，有太多可能的路径。
+
+每当你想在执行跳至块之外的每条路径执行某种操作，最通用的方式就是将该操作放入局部对象的析构函数中。这些对象称为 RAII 对象（RAII objects），从 RAII 类中实例化。（RAII 全称为 “Resource Acquisition Is Initialization”（资源获得即初始化），尽管技术关键点在析构上而不是实例化上）。RAII 类在标准库中很常见。比如 STL 容器（每个容器析构函数都销毁容器中的内容物并释放内存），标准智能指针（Item18-20 解释了，std::uniqu_ptr 的析构函数调用他指向的对象的删除器，std::shared_ptr 和 std::weak_ptr 的析构函数递减引用计数），std::fstream 对象（它们的析构函数关闭对应的文件）等。但是标准库没有 std::thread 的 RAII 类，可能是因为标准委员会拒绝将 join 和 detach 作为默认选项，不知道应该怎么样完成 RAII。
+
+幸运的是，完成自行实现的类并不难。比如，下面的类实现允许调用者指定 ThreadRAII 对象（一个 std::thread 的 RAII 对象）析构时，调用 join 或者 detach：
+
+```cpp
+class ThreadRAII {
+public:
+    enum class DtorAction { join, detach };     //enum class的信息见条款10
+
+    ThreadRAII(std::thread&& t, DtorAction a)   //析构函数中对t实行a动作
+    : action(a), t(std::move(t)) {}
+
+    ~ThreadRAII()
+    {                                           //可结合性测试见下
+        if (t.joinable()) {
+            if (action == DtorAction::join) {
+                t.join();
+            } else {
+                t.detach();
+            }
+        }
+    }
+
+    std::thread& get() { return t; }            //见下
+
+private:
+    DtorAction action;
+    std::thread t;
+};
+```
+
+- 构造器只接受 std::thread 右值，因为我们想要把传来的 std::thread 对象移动进 ThreadRAII。（std::thread 不可以复制。）
+
+- 构造器的形参顺序设计的符合调用者直觉（首先传递 std::thread，然后选择析构执行的动作，这比反过来更合理），但是成员初始化列表设计的匹配成员声明的顺序。将 std::thread 对象放在声明最后。在这个类中，这个顺序没什么特别之处，但是通常，可能一个数据成员的初始化依赖于另一个，因为 std::thread 对象可能会在初始化结束后就立即执行函数了，所以在最后声明是一个好习惯。这样就能保证一旦构造结束，在前面的所有数据成员都初始化完毕，可以供 std::thread 数据成员绑定的异步运行的线程安全使用。
+
+- ThreadRAII 提供了 get 函数访问内部的 std::thread 对象。这类似于标准智能指针提供的 get 函数，可以提供访问原始指针的入口。提供 get 函数避免了 ThreadRAII 复制完整 std::thread 接口的需要，也意味着 ThreadRAII 可以在需要 std::thread 对象的上下文环境中使用。
+
+- 在 ThreadRAII 析构函数调用 std::thread 对象 t 的成员函数之前，检查 t 是否可结合。这是必须的，因为在不可结合的 std::thread 上调用 join 或 detach 会导致未定义行为。客户端可能会构造一个 std::thread，然后用它构造一个 ThreadRAII，使用 get 获取 t，然后移动 t，或者调用 join 或 detach，每一个操作都使得 t 变为不可结合的。
+
+在析构函数中，存在竞争，因为在 t.joinable()的执行和调用 join 或 detach 的中间，可能有其他线程改变了 t 为不可结合，你的直觉值得表扬，但是这个担心不必要。只有调用成员函数才能使 std::thread 对象从可结合变为不可结合状态，比如 join，detach 或者移动操作。在 ThreadRAII 对象析构函数调用时，不可能有其他线程在那个对象上调用成员函数（不可能同时调用析构函数）。如果同时进行调用，是在客户端代码中试图同时在一个对象上调用两个成员函数（析构函数和其他函数）（这时是存在竞争的）。然而通常，仅当所有都为 const 成员函数时，在一个对象同时调用多个成员函数才是安全的。
+
+在 doWork 的例子上使用 ThreadRAII 的代码如下：
+
+```cpp
+bool doWork(std::function<bool(int)> filter,        //同之前一样
+            int maxVal = tenMillion)
+{
+    std::vector<int> goodVals;                      //同之前一样
+
+    ThreadRAII t(                                   //使用RAII对象
+        std::thread([&filter, maxVal, &goodVals]
+                    {
+                        for (auto i = 0; i <= maxVal; ++i)
+                            { if (filter(i)) goodVals.push_back(i); }
+                    }),
+                    ThreadRAII::DtorAction::join    //RAII动作
+    );
+
+    auto nh = t.get().native_handle();
+    …
+
+    if (conditionsAreSatisfied()) {
+        t.get().join();
+        performComputation(goodVals);
+        return true;
+    }
+
+    return false;
+}
+```
+
+这种情况下，我们选择在 ThreadRAII 的析构函数对异步执行的线程进行 join，因为在先前分析中，detach 可能导致噩梦般的调试过程。我们之前也分析了 join 可能会导致表现异常（坦率说，也可能调试困难），但是在未定义行为（detach 导致），程序终止（使用原生 std::thread 导致），或者表现异常之间选择一个后果，可能表现异常是最好的那个。
+
+[Item39](#item-39考虑对于单次事件通信使用-void)表明了使用 ThreadRAII 来保证在 std::thread 的析构时执行 join 有时不仅可能导致程序表现异常，还可能导致程序挂起。“适当”的解决方案是此类程序应该和异步执行的 lambda 通信，告诉它不需要执行了，可以直接返回，但是 C++11 中不支持可中断线程（interruptible threads）。
+
+Item17 说明因为 ThreadRAII 声明了一个析构函数，因此不会有编译器生成移动操作，但是没有理由 ThreadRAII 对象不能移动。如果要求编译器生成这些函数，函数的功能也正确，所以显式声明来告诉编译器自动生成也是合适的：
+
+```cpp
+class ThreadRAII {
+public:
+    enum class DtorAction { join, detach };         //跟之前一样
+
+    ThreadRAII(std::thread&& t, DtorAction a)       //跟之前一样
+    : action(a), t(std::move(t)) {}
+
+    ~ThreadRAII()
+    {
+        …                                           //跟之前一样
+    }
+
+    ThreadRAII(ThreadRAII&&) = default;             //支持移动
+    ThreadRAII& operator=(ThreadRAII&&) = default;
+
+    std::thread& get() { return t; }                //跟之前一样
+
+private: // as before
+    DtorAction action;
+    std::thread t;
+};
+```
+
 ## Item 37:remember
+
+- 在所有路径上保证 thread 最终是不可结合的。
+- 析构时 join 会导致难以调试的表现异常问题。
+- 析构时 detach 会导致难以调试的未定义行为。
+- 声明类数据成员时，最后声明 std::thread 对象。
 
 ## Item 38:关注不同线程句柄析构行为
 
+[Item37](#item-37从各个方面使得-stdthreads-unjoinable)中说明了可结合的 std::thread 对应于执行的系统线程。未延迟（non-deferred）任务的 future（参见[Item36](#item-36如果有异步的必要请指定-stdlaunchthreads)）与系统线程有相似的关系。因此，可以将 std::thread 对象和 future 对象都视作系统线程的句柄（handles）。
+
+std::thread 和 future 在析构时有相当不同的行为。
+在[Item37](#item-37从各个方面使得-stdthreads-unjoinable)中说明，可结合的 std::thread 析构会终止你的程序，因为两个其他的替代选择——隐式 join 或者隐式 detach 都是更加糟糕的。
+但是，future 的析构表现有时就像执行了隐式 join，有时又像是隐式执行了 detach，有时又没有执行这两个选择。它永远不会造成程序终止。这个线程句柄多种表现值得研究一下。
+
+我们可以观察到实际上 future 是通信信道的一端，被调用者通过该信道将结果发送给调用者。（[Item39](#item-39考虑对于单次事件通信使用-void)说，与 future 有关的这种通信信道也可以被用于其他目的。但是对于本条款，我们只考虑它们作为这样一个机制的用法，即被调用者传送结果给调用者。）被调用者（通常是异步执行）将计算结果写入通信信道中（通常通过 std::promise 对象），调用者使用 future 读取结果。可以想象成下面的图示，虚线表示信息的流动方向：
+![](./future_1.png)
+
+被调用者会在调用者 get 相关的 future 之前执行完成，所以结果不能存储在被调用者的 std::promise。这个对象是局部的，当被调用者执行结束后，会被销毁。
+
+结果同样不能存储在调用者的 future，因为（当然还有其他原因）std::future 可能会被用来创建 std::shared_future（这会将被调用者的结果所有权从 std::future 转移给 std::shared_future），而 std::shared_future 在 std::future 被销毁之后可能被复制很多次。鉴于不是所有的结果都可以被拷贝（即只可移动类型），并且结果的生命周期至少与最后一个引用它的 future 一样长，所以无法决定是用 future 中哪个才是被调用者用来存储结果的。
+
+因为与被调用者关联的对象和与调用者关联的对象都不适合存储这个结果，所以必须存储在两者之外的位置。此位置称为共享状态（shared state）。共享状态通常是基于堆的对象，但是标准并未指定其类型、接口和实现。标准库的作者可以通过任何他们喜欢的方式来实现共享状态。
+
+我们可以想象调用者，被调用者，共享状态之间关系如下图，虚线还是表示信息流方向：
+![](./future_2.png)
+共享状态的存在非常重要，因为 future 的析构函数取决于与 future 关联的共享状态：
+
+- **引用了使用 std::async 启动的未延迟任务建立的那个共享状态的最后一个 future 的析构函数会阻塞住，直到任务完成。**本质上，这种 future 的析构函数对执行异步任务的线程执行了隐式的 join。
+- **其他所有 future 的析构函数简单地销毁 future 对象。**对于异步执行的任务，就像对底层的线程执行 detach（相当于）。对于延迟任务来说如果这是最后一个 future，意味着这个延迟任务永远不会执行了。
+
+上述两条规则可以概括为一个简单的“正常”行为以及一个单独的例外。正常行为是 future 析构函数销毁 future。就是这样。那意味着不 join 也不 detach，也不运行什么，只销毁 future 的数据成员（当然，还做了另一件事，就是递减了共享状态中的引用计数，这个共享状态是由引用它的 future 和被调用者的 std::promise 共同控制的。这个引用计数让库知道共享状态什么时候可以被销毁。）
+
+而例外情况只会在下列条件都满足的时候才出现：
+
+- 它关联到由于调用 std::async 而创建出的共享状态。
+- 任务的启动策略是 std::launch::async（参见[Item36](#item-36如果有异步的必要请指定-stdlaunchthreads)），原因是运行时系统选择了该策略，或者在对 std::async 的调用中指定了该策略。
+- 这个 future 是关联共享状态的最后一个 future。对于 std::future，情况总是如此，对于 std::shared_future，如果还有其他的 std::shared_future，与要被销毁的 future 引用相同的共享状态，则要被销毁的 future 遵循正常行为（即简单地销毁它的数据成员）。
+
+只有当上面的三个条件都满足时，future 的析构函数才会在异步任务执行完之前阻塞住。
+
+future 的 API 没办法确定是否 future 引用了一个 std::async 调用产生的共享状态，因此给定一个任意的 future 对象，无法判断会不会因等待异步任务而阻塞析构函数：
+
+```cpp
+//这个容器可能在析构函数处阻塞，因为其中可能有一个或多个future可能引用由std::async启动的
+//未延迟任务创建出来的共享状态
+std::vector<std::future<void>> futs;    //std::future<void>相关信息见条款39
+
+class Widget {                          //Widget对象可能在析构函数处阻塞
+public:
+    …
+private:
+    std::shared_future<double> fut;
+};
+```
+
+当然，如果你有办法知道给定的 future 不满足上面条件的任意一条（比如由于程序逻辑造成的不满足），你就可以确定析构函数不会执行“异常”行为。比如，只有通过 std::async 创建的共享状态才有资格执行“异常”行为，但是有其他创建共享状态的方式。
+
+比如使用 std::packaged_task 进行创建，一个 std::packaged_task 对象通过包覆（wrapping）方式准备一个函数（或者其他可调用对象）来异步执行，然后将其结果放入共享状态中。然后通过 std::packaged_task 的 get_future 函数可以获取有关该共享状态的 future：
+
+```cpp
+int calcValue();                //要运行的函数
+std::packaged_task<int()>       //包覆calcValue以异步运行
+    pt(calcValue);
+auto fut = pt.get_future();     //从pt获取future
+```
+
+此时，我们知道 future 没有关联 std::async 创建的共享状态，所以析构函数肯定正常方式执行。
+
+std::packaged_task 类型的 pt 可以绑定在一个线程（std::thread）上执行。（也可以通过调用 std::async 运行，但是如果你想使用 std::async 运行任务，没有理由使用 std::packaged_task，因为可以直接 std::async 进行执行。）
+
+std::packaged_task 不可拷贝，所以当 pt 被传递给 std::thread 构造函数时，必须先转为右值（通过 std::move，参见 Item23）：
+
+```cpp
+{                                   //开始代码块
+    std::packaged_task<int()>
+        pt(calcValue);
+
+    auto fut = pt.get_future();
+
+    std::thread t(std::move(pt));   //见下
+    …
+}                                   //结束代码块
+```
+
+该线程 t 在程序中：
+
+- 对 t 什么也不做。这种情况，t 会在语句块结束时是可结合的，这会使得程序终止（参见 [Item37](#item-37从各个方面使得-stdthreads-unjoinable)）。
+- 对 t 调用 join。这种情况，不需要 fut 在它的析构函数处阻塞，因为 join 被显式调用了。
+- 对 t 调用 detach。这种情况，不需要在 fut 的析构函数执行 detach，因为显式调用了。
+
+换句话说，当你有一个关联了 std::packaged_task 创建的共享状态的 future 时，不需要采取特殊的销毁策略（直接销毁 future 即可），因为通常你会代码中做终止、结合或分离这些决定之一，来操作 std::packaged_task 的运行所在的那个 std::thread。
+
 ## Item 38:remember
+
+- future 的正常析构行为就是销毁 future 本身的数据成员。
+- 引用了使用 std::async 启动的未延迟任务建立的 future 创建的共享状态的最后一个 future 的析构函数会阻塞住，直到任务完成。
 
 ## Item 39:考虑对于单次事件通信使用 void
 
