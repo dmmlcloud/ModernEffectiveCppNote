@@ -1,4 +1,4 @@
-# Deducing Types
+# eDeducing Types
 
 ## Item1:理解模板类型推导
 
@@ -76,7 +76,7 @@ f(27); //27是右值，所以T是int
 以值传递的方式处理，无论传递什么 param 都会成为它的一份拷贝——一个完整的新对象。事实上 param 成为一个新对象这一行为会影响 T 如何从 expr 中推导出结果。
 
 - 和之前一样，如果 expr 的类型是一个引用，忽略这个引用部分
-- 如果忽略引用之后 expr 是一个 const，那就再忽略 const。如果它是 volatile，也会被忽略（volatile 不常见，它通常用于驱动程序的开发中。关于 volatile 的细节请参见 Item40)
+- 如果忽略引用之后 expr 是一个 const，那就再忽略 const。如果它是 volatile，也会被忽略（volatile 不常见，它通常用于驱动程序的开发中。关于 volatile 的细节请参见 [Item40](./concurrency.md))
 
 ```cpp
 template<typename T>
@@ -144,7 +144,7 @@ f2(someFunc); //param被推导为指向函数的引用，类型为void(&)(int, b
 
 auto 依赖于模板类型推导，正如我在开始谈论的，在大多数情况下它们的行为很直接。
 
-## Item1-remember
+## Item1:remember
 
 **记住：**
 
@@ -238,7 +238,7 @@ auto resetV = [&v](const auto & newValue){v=newValue;}; //C++14
 reset({1,2,3}); //错误！推导失败
 ```
 
-## Item2-remember
+## Item2:remember
 
 - auto 类型推导通常和模板类型推导相同，但是 auto 类型推导假定花括号初始化代表 std::initializer_list 而模板类型推导不这样做
 - 在 C++14 中 auto 允许出现在函数返回值或者 lambda 函数形参中，但是它的⼯作机制是模板类型推导那一套方案。
@@ -375,7 +375,7 @@ decltype(auto) f2() // 注意不仅f2的返回类型不同于f1，而且它还�
 }
 ```
 
-## Item3-remember
+## Item3:remember
 
 - decltype 总是不加修改的产生变量或者表达式的类型。
 - 对于 T 类型的左值表达式，decltype 总是产出 T 的引用即 T&。
@@ -466,7 +466,7 @@ void f(const T& param){
 }
 ```
 
-## Item4-remember
+## Item4:remember
 
 - 类型推断可以从 IDE 看出，从编译器报错看出，从一些库的使用看出
 - 这些⼯具可能既不准确也无帮助，所以理解 C++类型推导规则才是最重要的

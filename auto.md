@@ -100,12 +100,12 @@ for(const auto & p : m)
 
 使⽤ auto 可以帮助我们完成⼀些重构⼯作。举个例⼦，如果⼀个函数返回类型被声明为 int，但是后来你认为将它声明为 long 会更好，调⽤它作为初始化表达式的变量会⾃动改变类型，但是如果你不使⽤ auto 你就不得不在源代码中挨个找到调⽤地点然后修改它们。
 
-## Item5-remember
+## Item5:remember
 
 - auto 变量必须初始化，通常它可以避免⼀些移植性和效率性的问题，也使得重构更⽅便，还能让你少打⼏个字。
-- 正如 Item2 和 6 讨论的，auto 类型的变量可能会踩到⼀些陷阱。
+- 正如 [Item2](./deducing_types.md) 和 [Item6](#item6如果-auto-不能预期推导出类型使用显示类型初始化) 讨论的，auto 类型的变量可能会踩到⼀些陷阱。
 
-## Item6：如果 auto 不能预期推导出类型，使用显示类型初始化
+## Item6:如果 auto 不能预期推导出类型，使用显示类型初始化
 
 ```cpp
 auto highPriority = features(w)[5];
@@ -151,7 +151,7 @@ auto ep = static_cast<float>(calEpsilon());
 auto index = static_cast(d * size()); // 计算下标时，d为double类型
 ```
 
-## Item6-remember
+## Item6:remember
 
 - 不可见的代理类可能会使 auto 从表达式中推导出“错误的”类型
 - 显式类型初始器惯用法强制 auto 推导出你想要的结果

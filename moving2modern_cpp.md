@@ -54,7 +54,7 @@ Widget w2(); //最令人头疼的解析！声明一个函数w2，返回Widget
 Widget w3{}; //调用没有参数的构造函数构造对象
 ```
 
-括号初始化的缺点是有时它有一些令人惊讶的行为。Item2 解释了当 auto 声明的变量使用花括号初始化，变量就会被推导为 std::initializer_list，尽管使用相同内容的其他初始化方式会产生正常的结果。所以，你越喜欢用 atuo，你就越不能用括号初始化。
+括号初始化的缺点是有时它有一些令人惊讶的行为。[Item2](./deducing_types.md) 解释了当 auto 声明的变量使用花括号初始化，变量就会被推导为 std::initializer_list，尽管使用相同内容的其他初始化方式会产生正常的结果。所以，你越喜欢用 atuo，你就越不能用括号初始化。
 在构造函数调用中，只要不包含 std::initializer_list 参数，那么花括号初始化和小括号初始化都会产生一
 样的结果：
 
@@ -169,9 +169,9 @@ doSomeWork<std::vector<int>>(10, 20);
 如果 doSomeWork 创建 localObject 时使用的是小括号，std::vector 就会包含 10 个元素。
 如果 doSomeWork 创建 localObject 时使用的是花括号，std::vector 就会包含 2 个元素。
 哪个是正确的？doSomeWork 的作者不知道，只有调用者知道。
-这正是标准库函数 std::make_unique 和 std::make_shared（参见 Item21）面对的问题。
+这正是标准库函数 std::make_unique 和 std::make_shared（参见 [Item21](./smart_ptr.md)）面对的问题。
 
-## Item7-remember
+## Item7:remember
 
 - 括号初始化是最⼴泛使用的初始化语法，它防止变窄转换，并且对于 C++最令人头疼的解析有天生的免疫性
 - 在构造函数重载决议中，括号初始化尽最大可能与 std::initializer_list 参数匹配，即便其他构造函数看起来是更好的选择
@@ -252,7 +252,7 @@ auto result2 = lockAndCall(f2, f2m, NULL); // 错误！NULL会被推断为一个
 auto result3 = lockAndCall(f3, f3m, nullptr); // 没问题
 ```
 
-## Item8-remember
+## Item8:remember
 
 - 优先考虑 nullptr 而非 0 和 NULL
 - 避免重载指针和整型
@@ -343,7 +343,7 @@ template <class T>
 using add_lvalue_reference_t = typename add_lvalue_reference<T>::type;
 ```
 
-## Item9-remember
+## Item9:remember
 
 - typedef 不支持模板化，但是别名声明支持。
 - 别名模板避免了使用"::type"后缀，而且在模板中使用 typedef 还需要在前面加上 typename
@@ -495,19 +495,21 @@ toUType(E enumerator) noexcept
 auto val = std::get<toUType(UserInfoFields::uiEmail)>(uInfo);
 ```
 
-## Item10-remember
+## Item10:remember
 
 - C++98 的枚举即非限域枚举
 - 限域枚举的枚举名仅在 enum 内可见。要转换为其它类型只能使用 cast。
 - 非限域/限域枚举都支持基础类型说明语法，限域枚举基础类型默认是 int 。非限域枚举没有默认基础类型。
 - 限域枚举总是可以前置声明。非限域枚举仅当指定它们的基础类型时才能前置。
 
-## Item11:优先考虑使用deleted函数而⾮使用未定义的私有声明
-有时C++会给你⾃动声明一些函数，如果你想防⽌客户调用这些函数，事情就不那么简单了。
+## Item11:优先考虑使用 deleted 函数而⾮使用未定义的私有声明
 
-**在C++98中防⽌调用这些函数的⽅法是将它们声明为私有成员函数。**
+有时 C++会给你⾃动声明一些函数，如果你想防⽌客户调用这些函数，事情就不那么简单了。
 
-举个例⼦，在C++ 标准库iostream继承链的顶部是模板类 basic_ios 。所有 istream 和 ostream 类都继承此类(直接或者间接)。拷贝istream 和 ostream 是不合适的。
+**在 C++98 中防⽌调用这些函数的⽅法是将它们声明为私有成员函数。**
+
+举个例⼦，在 C++ 标准库 iostream 继承链的顶部是模板类 basic_ios 。所有 istream 和 ostream 类都继承此类(直接或者间接)。拷贝 istream 和 ostream 是不合适的。
+
 ```cpp
 template <class charT, class traits = char_traits<charT> >
 class basic_ios : public ios_base {
@@ -518,7 +520,9 @@ private:
     basic_ios& operator=(const basic_ios&); // not defined
 };
 ```
-**在C++11中有一种更好的⽅式，只需要使用相同的结尾：用 = delete 将拷贝构造函数和拷贝赋值运算符标记为 deleted 函数：**
+
+**在 C++11 中有一种更好的⽅式，只需要使用相同的结尾：用 = delete 将拷贝构造函数和拷贝赋值运算符标记为 deleted 函数：**
+
 ```cpp
 template <class charT, class traits = char_traits<charT> >
 class basic_ios : public ios_base {
@@ -529,13 +533,15 @@ public:
     …
 };
 ```
-deleted 函数不能以任何⽅式被调用，即使你在成员函数或者友元函数⾥⾯调用deleted 函数也不能通过编译。
 
-通常， deleted 函数被声明为public而不是private.这也是有原因的：当客户端代码试图调用成员函数，C++会在检查 deleted 状态前检查它的访问性，所以当客户端代码调用一个私有的 deleted 函数，一些编译器只会给出该函数是private的错误，而没有诸如该函数被 deleted 修饰的错误。
+deleted 函数不能以任何⽅式被调用，即使你在成员函数或者友元函数⾥⾯调用 deleted 函数也不能通过编译。
+
+通常， deleted 函数被声明为 public 而不是 private.这也是有原因的：当客户端代码试图调用成员函数，C++会在检查 deleted 状态前检查它的访问性，所以当客户端代码调用一个私有的 deleted 函数，一些编译器只会给出该函数是 private 的错误，而没有诸如该函数被 deleted 修饰的错误。
 
 deleted 函数还有一个重要的优势是任何函数都可以标记为 deleted。
 
-C++有沉重的C包袱，使得含糊的、能被视作数值的任何类型都能隐式转换为 int ，但是有一些调用可能是没有意义的：
+C++有沉重的 C 包袱，使得含糊的、能被视作数值的任何类型都能隐式转换为 int ，但是有一些调用可能是没有意义的：
+
 ```cpp
 bool isLucky(int number);
 if (isLucky('a')) … // 字符'a'是幸运数？
@@ -545,13 +551,17 @@ bool isLucky(char) = delete; // 拒绝char
 bool isLucky(bool) = delete; // 拒绝bool
 bool isLucky(double) = delete; // 拒绝float和double，在传入float时会转为double（优先）或int
 ```
-另一个 deleted 函数用武之地（private成员函数做不到的地⽅）是禁⽌一些模板的实例化。
+
+另一个 deleted 函数用武之地（private 成员函数做不到的地⽅）是禁⽌一些模板的实例化。
 假如你要求一个模板仅⽀持原生指针：
+
 ```cpp
 template<typename T>
 void processPointer(T* ptr);
 ```
-在指针的世界⾥有两种特殊情况。一是 void* 指针，因为没办法对它们进⾏解引用，或者加加减减等。另一种指针是 char* ，因为它们通常代表C⻛格的字符串，而不是正常意义下指向单个字符的指针。这两种情况要特殊处理，在 processPointer 模板⾥⾯，我们假设正确的函数应该拒绝这些类型。也即是说， processPointer 不能被 void* 和 char* 调用。
+
+在指针的世界⾥有两种特殊情况。一是 void* 指针，因为没办法对它们进⾏解引用，或者加加减减等。另一种指针是 char* ，因为它们通常代表 C ⻛格的字符串，而不是正常意义下指向单个字符的指针。这两种情况要特殊处理，在 processPointer 模板⾥⾯，我们假设正确的函数应该拒绝这些类型。也即是说， processPointer 不能被 void* 和 char* 调用。
+
 ```cpp
 template<>
 void processPointer<void>(void*) = delete;
@@ -563,7 +573,9 @@ template<>
 void processPointer<const char>(const char*) = delete;
 // 如果你想做得更彻底一些，你还要删除 const volatile void* 和 const volatile char* 重载版本，另外还需要一并删除其他标准字符类型的重载版本： std::wchar_t , std::char16_t 和 std::char32_t 。
 ```
-如果的类⾥⾯有一个函数模板，你可能想用 private （经典的C++98惯例）来禁⽌这些函数模板实例化，但是不能这样做，因为不能给特化的模板函数指定一个不同（于函数模板）的访问级别。
+
+如果的类⾥⾯有一个函数模板，你可能想用 private （经典的 C++98 惯例）来禁⽌这些函数模板实例化，但是不能这样做，因为不能给特化的模板函数指定一个不同（于函数模板）的访问级别。
+
 ```cpp
 class Widget {
 public:
@@ -587,13 +599,17 @@ public:
 template<>
 void Widget::processPointer<void>(void*) = delete; // 还是public，但是已经被删除了
 ```
-## Item11-remember
-- ⽐起声明函数为private但不定义，使用delete函数更好
+
+## Item11:remember
+
+- ⽐起声明函数为 private 但不定义，使用 delete 函数更好
 - 任何函数都能 delete ，包括⾮成员函数和模板实例
 - 函数模板意指未特化前的源码，模板函数则倾向于模板实例化后的函数
 
-## Item12:使用override声明重载函数
+## Item12:使用 override 声明重载函数
+
 虚函数重写：
+
 ```cpp
 class Base {
 public:
@@ -608,18 +624,21 @@ public:
 std::unique_ptr<Base> upb = // 创建基类指针
 std::make_unique<Derived>(); // 指向派生类对象
 
-… 
+…
 upb->doWork(); // 通过基类指针调用doWork
                 // 实际上是派生类的doWork
                 // 函数被调用
 ```
+
 要想重写一个函数，必须满⾜下列要求：
+
 - 基类函数必须是 virtual
 - 基类和派生类函数名必须完全一样（除⾮是析构函数
 - 基类和派生类函数参数必须完全一样
 - 基类和派生类函数常量性(constness)必须完全一样
 - 基类和派生类函数的返回值和异常说明(exception specifications)必须兼容
 - 函数的引用限定符（reference qualifiers）必须完全一样。它可以限定成员函数只能用于左值或者右值。成员函数不需要 virtual 也能使用它们：（C++11）
+
 ```cpp
 class Widget {
 public:
@@ -636,7 +655,9 @@ w.doWork(); // 调用被左值引用限定修饰的Widget::doWork版本
 makeWidget().doWork(); // 调用被右值引用限定修饰的Widget::doWork版本
                         // (即Widget::doWork &&)
 ```
+
 这么多的重写需求意味着哪怕一个小小的错误也会造成巨⼤的不同:
+
 ```cpp
 class Base {
 public:
@@ -653,9 +674,11 @@ public:
     void mf4() const; // 非virtual
 };
 ```
-上述代码在编译时可能没有warning
 
-由于正确声明派生类的重写函数很重要，但很容易出错，C++11提供一个⽅法让你可以显式的将派生类函数指定为应该是基类重写版本：将它声明为 override：
+上述代码在编译时可能没有 warning
+
+由于正确声明派生类的重写函数很重要，但很容易出错，C++11 提供一个⽅法让你可以显式的将派生类函数指定为应该是基类重写版本：将它声明为 override：
+
 ```cpp
 class Derived: public Base {
 public:
@@ -665,9 +688,11 @@ public:
     virtual void mf4() const override;
 };
 ```
+
 代码不能编译，当然了，因为这样写的时候，编译器会抱怨所有与重写有关的问题，这也是你想要的，以及为什么要在所有重写函数后⾯加上 override。
 
 正确写法：
+
 ```cpp
 class Base {
 public:
@@ -684,11 +709,13 @@ public:
     void mf4() const override; // 可以添加virtual，但不是必要
 };
 ```
+
 如果你考虑修改修改基类虚函数的函数签名， override 还可以帮你评估后果。如果派生类全都用上 override ，你可以只改变基类函数签名，重编译系统，再看看你造成了多⼤的问题（即，多少派生类不能通过编译），然后决定是否值得如此⿇烦更改函数签名。没有重写，你只能寄希望于完善的单元测试，因为，正如我们所⻅，派生类虚函数本想重写基类，但是没有，编译器也没有探测并发出诊断信息。
 
-C++11引⼊了两个上下⽂关键字, override 和 final （向虚函数添加 final 可以防⽌派生类重写。 final 也能用于类，这时这个类不能用作基类）。
+C++11 引⼊了两个上下⽂关键字, override 和 final （向虚函数添加 final 可以防⽌派生类重写。 final 也能用于类，这时这个类不能用作基类）。
 
-这两个关键字的特点是它们是保留的，它们只是位于特定上下⽂才被视为关键字。对于 override ，它只在成员函数声明结尾处才被视为关键字。这意味着如果你以前写的代码⾥⾯已经用过override这个名字，那么换到C++11标准你也⽆需修改代码：
+这两个关键字的特点是它们是保留的，它们只是位于特定上下⽂才被视为关键字。对于 override ，它只在成员函数声明结尾处才被视为关键字。这意味着如果你以前写的代码⾥⾯已经用过 override 这个名字，那么换到 C++11 标准你也⽆需修改代码：
+
 ```cpp
 class Warning { // potential legacy class from C++98
 public:
@@ -696,6 +723,7 @@ public:
     void override(); // C++98和C++11都合法
 };
 ```
+
 下面介绍成员函数的引用限定的使用场景：
 假设我们的 Widget 类有一个 std::vector 数据成员，我们提供一个函数让客户端可以直接访问它：
 
@@ -735,13 +763,17 @@ private:
 auto vals1 = w.data(); //调用左值重载版本的Widget::data，拷贝构造vals1
 auto vals2 = makeWidget().data(); //调用右值重载版本的Widget::data, 移动构造vals2
 ```
-## Item12-remember
-- 为重载函数加上 override
-- 成员函数限定让我们可以区别对待左值对象和右值对象（即 *this）
 
-## Item13:优先考虑const_iterator而非iterator
-STL const_iterator等价于指向常量的指针，它们都指向不能被修改的值。
-但是在C++98中，标准库对const_iterator的⽀持不是很完整。⾸先不容易创建它们，其次就算你有了它，它的使用也是受限的。
+## Item12:remember
+
+- 为重载函数加上 override
+- 成员函数限定让我们可以区别对待左值对象和右值对象（即 \*this）
+
+## Item13:优先考虑 const_iterator 而非 iterator
+
+STL const_iterator 等价于指向常量的指针，它们都指向不能被修改的值。
+但是在 C++98 中，标准库对 const_iterator 的⽀持不是很完整。⾸先不容易创建它们，其次就算你有了它，它的使用也是受限的。
+
 ```cpp
 typedef std::vector<int>::iterator IterT; // typetypedef
 std::vector<int>::const_iterator ConstIterT; // defs
@@ -753,15 +785,17 @@ std::find(static_cast<ConstIterT>(values.begin()), // cast
             1983);
 values.insert(static_cast<IterT>(ci), 1998); // 可能⽆法通过编译，原因⻅下
 ```
-之所以 std::find 的调用会出现类型转换是因为在C++98中values是⾮常量容器，没办法简简单单的从⾮常量容器中获取const_iterator，严格来说类型转换不是必须的，因为用其他⽅法获取const_iterator也是可以的（⽐如你可以把values绑定到常量引用上，然后再用这个变量代替values），但不管怎么说，从⾮常量容器中获取const_iterator的做法都有点别扭。
 
-在获得了const_iterator，因为C++98中，插⼊操作的位置只能由iterator指定，const_iterator是不被接受的，所以在上述代码中将const_iterator转换为iterat的，因为向insert传⼊const_iterator不能通过编译。
+之所以 std::find 的调用会出现类型转换是因为在 C++98 中 values 是⾮常量容器，没办法简简单单的从⾮常量容器中获取 const_iterator，严格来说类型转换不是必须的，因为用其他⽅法获取 const_iterator 也是可以的（⽐如你可以把 values 绑定到常量引用上，然后再用这个变量代替 values），但不管怎么说，从⾮常量容器中获取 const_iterator 的做法都有点别扭。
 
-但上⾯的代码依然⽆法编译，因为没有一个可移植的从const_iterator到iterator的⽅法，即使使用 static_cast 也不⾏，甚⾄reinterpret_cast也不行。
+在获得了 const_iterator，因为 C++98 中，插⼊操作的位置只能由 iterator 指定，const_iterator 是不被接受的，所以在上述代码中将 const_iterator 转换为 iterat 的，因为向 insert 传⼊ const_iterator 不能通过编译。
 
-**所以const_iterator在C++98中会有很多问题**
+但上⾯的代码依然⽆法编译，因为没有一个可移植的从 const_iterator 到 iterator 的⽅法，即使使用 static_cast 也不⾏，甚⾄ reinterpret_cast 也不行。
 
-这些都在C++11中改变了，现在const_iterator即容易获取⼜容易使用。容器的成员函数cbegin 和 cend 产出const_iterator，甚⾄对于⾮常量容器，那些之前只使用iterator指⽰位置的STL成员函数也可以使用const_iterator了。使用C++11 const_iterator重写C++98使用iterator的代码也稀松平常：
+**所以 const_iterator 在 C++98 中会有很多问题**
+
+这些都在 C++11 中改变了，现在 const_iterator 即容易获取⼜容易使用。容器的成员函数 cbegin 和 cend 产出 const_iterator，甚⾄对于⾮常量容器，那些之前只使用 iterator 指⽰位置的 STL 成员函数也可以使用 const_iterator 了。使用 C++11 const_iterator 重写 C++98 使用 iterator 的代码也稀松平常：
+
 ```cpp
 std::vector<int> values; // 和之前一样
 …
@@ -769,7 +803,9 @@ auto it = // 使用cbegin
 std::find(values.cbegin(),values.cend(), 1983); // 和cend
 values.insert(it, 1998);
 ```
-唯一一个C++11对于const_iterator⽀持不⾜（C++14⽀持但是C++11的时候还没）的情况是：当你想写最⼤程度通用的库，并且这些库代码为一些容器和类似容器的数据结构提供⾮成员函数begin、end（以及cbegin，cend，rbegin，rend）而不是成员函数:
+
+唯一一个 C++11 对于 const_iterator ⽀持不⾜（C++14 ⽀持但是 C++11 的时候还没）的情况是：当你想写最⼤程度通用的库，并且这些库代码为一些容器和类似容器的数据结构提供⾮成员函数 begin、end（以及 cbegin，cend，rbegin，rend）而不是成员函数:
+
 ```cpp
 template<typename C, typename V>
 void findAndInsert(C& container, // 在容器中查找第一次
@@ -787,21 +823,25 @@ const V& insertVal) // 然后插⼊insertVal
 template <class C>
 auto cbegin(const C& container)->decltype(std::begin(container))
 {
-    // container 类型为 const C& 
+    // container 类型为 const C&
     return std::begin(container); // 对const容器调用⾮成员函数begin（由C++11提供)将产出const_iterator
 }
 // 如果C是原生数组，这个模板也能⼯作。这时，container成为一个const数组。C++11为数组提供特化版本的⾮成员函数begin，它返回指向数组第一个元素的指针。一个const数组的元素也是const，所以对于const数组，⾮成员函数begin返回指向const的指针
 ```
-## Item13-remember
-- 优先考虑const_iterator而⾮iterator(C++98需考虑)
-- 在最⼤程度通用的代码中，优先考虑⾮成员函数版本的begin，end，rbegin等，而⾮同名成员函数
 
-## Item14:如果函数不抛出异常请使用noexcept
-在C++11标准化过程中，⼤家一致认为异常说明真正有用的信息是一个函数是否会抛出异常。⾮⿊即⽩，一个函数可能抛异常，或者不会。这种"可能-绝不"的二元论构成了C++11异常说的基础，从根本上改变了C++98的异常说明。
+## Item13:remember
 
-noexcept可以表示函数不会抛出异常，函数的异常抛出⾏为是客户端代码最关⼼的。调用者可以查看函数是否声明为noexcept，这个可以影响到调用代码的异常安全性和效率。
+- 优先考虑 const_iterator 而⾮ iterator(C++98 需考虑)
+- 在最⼤程度通用的代码中，优先考虑⾮成员函数版本的 begin，end，rbegin 等，而⾮同名成员函数
 
-同时给不抛异常的函数加上noexcept还可以允许编译器生成更好的⽬标代码。
+## Item14:如果函数不抛出异常请使用 noexcept
+
+在 C++11 标准化过程中，⼤家一致认为异常说明真正有用的信息是一个函数是否会抛出异常。⾮⿊即⽩，一个函数可能抛异常，或者不会。这种"可能-绝不"的二元论构成了 C++11 异常说的基础，从根本上改变了 C++98 的异常说明。
+
+noexcept 可以表示函数不会抛出异常，函数的异常抛出⾏为是客户端代码最关⼼的。调用者可以查看函数是否声明为 noexcept，这个可以影响到调用代码的异常安全性和效率。
+
+同时给不抛异常的函数加上 noexcept 还可以允许编译器生成更好的⽬标代码。
+
 ```cpp
 // 因为在C++98的异常说明中，调用栈会展开⾄f的调用者，一些不合适的动作⽐如程序终⽌也会发生。
 // 而在  C++11异常说明的运⾏时⾏为明显不同：调用栈只是可能在程序终⽌前展开，在一个noexcept函数中，当异常传播到函数外，优化器不需要保证运⾏时栈的可展开状态，也不需要保证noexcept函数中的对象按照构造的反序析构
@@ -809,7 +849,8 @@ RetType function(params) noexcept; // 极尽所能优化
 RetType function(params) throw(); // 较少优化
 RetType function(params); // 较少优化
 ```
-移动操作也需要我们考虑使用noexcept
+
+移动操作也需要我们考虑使用 noexcept
 
 ```cpp
 std::vector<Widget> vw;
@@ -819,15 +860,16 @@ Widget w;
 vw.push_back(w); // add w to vw
 ```
 
-当新元素添加到 std::vector ， std::vector 可能没地⽅放它，换句话说， std::vector 的⼤小(size)等于它的容量(capacity)。这时候， std::vector 会分配一⽚的新的⼤块内存用于存放，然后将元素从已经存在的内存移动到新内存。在C++98中，移动是通过复制老内存区的每一个元素到新内存区完成的，然后老内存区的每个元素发生析构。
+当新元素添加到 std::vector ， std::vector 可能没地⽅放它，换句话说， std::vector 的⼤小(size)等于它的容量(capacity)。这时候， std::vector 会分配一⽚的新的⼤块内存用于存放，然后将元素从已经存在的内存移动到新内存。在 C++98 中，移动是通过复制老内存区的每一个元素到新内存区完成的，然后老内存区的每个元素发生析构。
 
 这种⽅法使得 push_back 可以提供很强的异常安全保证：如果在复制元素期间抛出异常，std::vector 状态保持不变，因为老内存元素析构必须建⽴在它们已经成功复制到新内存的前提下。
 
-在C++11中，一个很⾃然的优化就是将上述复制操作替换为移动操作。但是很不幸运，这回破坏push_back 的异常安全。如果n个元素已经从老内存移动到了新内存区，但异常在移动第n+1个元素时抛出，那么 push_back 操作就不能完成。但是原始的 std::vector 已经被修改：有n个元素已经移动走了。恢复 std::vector ⾄原始状态也不太可能，因为从新内存移动到老内存本⾝⼜可能引发异常。
+在 C++11 中，一个很⾃然的优化就是将上述复制操作替换为移动操作。但是很不幸运，这回破坏 push_back 的异常安全。如果 n 个元素已经从老内存移动到了新内存区，但异常在移动第 n+1 个元素时抛出，那么 push_back 操作就不能完成。但是原始的 std::vector 已经被修改：有 n 个元素已经移动走了。恢复 std::vector ⾄原始状态也不太可能，因为从新内存移动到老内存本⾝⼜可能引发异常。
 
-std::vector::push_back 受益于"如果可以就移动，如果必要则复制"策略，并且它不是标准库中唯一采取该策略的函数。C++98中还有一些函数如 std::vector::reverse , std:;deque::insert 等也受益于这种强异常保证。对于这个函数只有在知晓移动不抛异常的情况下用C++11的move替换C++98的copy才是安全的。但是如何知道一个函数中的移动操作是否产生异常？答案很明显：它检查是否声明noexcept。
+std::vector::push_back 受益于"如果可以就移动，如果必要则复制"策略，并且它不是标准库中唯一采取该策略的函数。C++98 中还有一些函数如 std::vector::reverse , std:;deque::insert 等也受益于这种强异常保证。对于这个函数只有在知晓移动不抛异常的情况下用 C++11 的 move 替换 C++98 的 copy 才是安全的。但是如何知道一个函数中的移动操作是否产生异常？答案很明显：它检查是否声明 noexcept。
 
-swap函数中noexcept也十分重要，标准库的swap是否noexcept有时依赖于用户定义的swap是否noexcept。⽐如，数组和 std::pair 的swap声明如下：
+swap 函数中 noexcept 也十分重要，标准库的 swap 是否 noexcept 有时依赖于用户定义的 swap 是否 noexcept。⽐如，数组和 std::pair 的 swap 声明如下：
+
 ```cpp
 template <class T, size_t N>
 void swap(T (&a)[N], // see
@@ -841,24 +883,28 @@ struct pair {
     …
 };
 ```
-这些函数视情况noexcept：它们是否noexcept依赖于 noexcept 声明中的表达式是否noexcept。假设有两个Widget数组，不抛异常的交换数组前提是数组中的元素交换不抛异常。对于Widget的交换是否noexcept决定了对于 Widget 数组的交换是否noexcept，反之亦然。类似的，交换两个存放Widget的 std::pair 是否noexcept依赖于Widget的交换是否noexcept。事实上交换⾼层次数据结构是否noexcept取决于它的构成部分的那些低层次数据结构是否异常，这激励你只要可以就提供noexcept的swap函数，因为如果你的函数不提供noexcept保证，其它依赖你的⾼层次swap就不能保证noexcept。
 
-是实际上⼤多数函数都是异常中⽴（exception neutral）的。这些函数⾃⼰不抛异常，但是它们内部的调用可能抛出。此时，异常中⽴函数允许那些抛出异常的函数在调用链上更进一步直到遇到异常处理程序，而不是就地终⽌。异常中⽴函数决不应该声明为noexcept，因为它们可能抛出那种"让它们过吧"的异常，也就是说在当前这个函数内不处理异常，但是⼜不⽴即终⽌程序，而是让调用这个函数的函数处理异常。因此⼤多数函数都不应该被指定为noexcept。
+这些函数视情况 noexcept：它们是否 noexcept 依赖于 noexcept 声明中的表达式是否 noexcept。假设有两个 Widget 数组，不抛异常的交换数组前提是数组中的元素交换不抛异常。对于 Widget 的交换是否 noexcept 决定了对于 Widget 数组的交换是否 noexcept，反之亦然。类似的，交换两个存放 Widget 的 std::pair 是否 noexcept 依赖于 Widget 的交换是否 noexcept。事实上交换⾼层次数据结构是否 noexcept 取决于它的构成部分的那些低层次数据结构是否异常，这激励你只要可以就提供 noexcept 的 swap 函数，因为如果你的函数不提供 noexcept 保证，其它依赖你的⾼层次 swap 就不能保证 noexcept。
 
-**是移动操作和swap——使其不抛异常有重⼤意义，只要可能就应该将它们声明为noexcept；为了noexcept而扭曲函数实现达成⽬的是本末倒置**
+是实际上⼤多数函数都是异常中⽴（exception neutral）的。这些函数⾃⼰不抛异常，但是它们内部的调用可能抛出。此时，异常中⽴函数允许那些抛出异常的函数在调用链上更进一步直到遇到异常处理程序，而不是就地终⽌。异常中⽴函数决不应该声明为 noexcept，因为它们可能抛出那种"让它们过吧"的异常，也就是说在当前这个函数内不处理异常，但是⼜不⽴即终⽌程序，而是让调用这个函数的函数处理异常。因此⼤多数函数都不应该被指定为 noexcept。
 
-在C++98构造函数和析构函数抛出异常是糟糕的代码设计——不管是用户定义的还是编译器生成的构造析构都是noexcept。因此它们不需要声明noexcept。（这么做也不会有问题，只是不合常规）。析构函数⾮隐式noexcept的情况仅当类的数据成员明确声明它的析构函数可能抛出异常（即，声明 noexcept(false) ）。这种析构函数不常⻅，标准库⾥⾯没有。如果一个对象的析构函数可能被标准库使用，析构函数⼜可能抛异常，那么程序的⾏为是未定义的。
+**是移动操作和 swap——使其不抛异常有重⼤意义，只要可能就应该将它们声明为 noexcept；为了 noexcept 而扭曲函数实现达成⽬的是本末倒置**
+
+在 C++98 构造函数和析构函数抛出异常是糟糕的代码设计——不管是用户定义的还是编译器生成的构造析构都是 noexcept。因此它们不需要声明 noexcept。（这么做也不会有问题，只是不合常规）。析构函数⾮隐式 noexcept 的情况仅当类的数据成员明确声明它的析构函数可能抛出异常（即，声明 noexcept(false) ）。这种析构函数不常⻅，标准库⾥⾯没有。如果一个对象的析构函数可能被标准库使用，析构函数⼜可能抛异常，那么程序的⾏为是未定义的。
 
 值得注意的是一些库接口设计者会区分有宽泛契约(wild contracts)和严格契约(narrow contracts)的函数。有宽泛契约的函数没有前置条件。这种函数不管程序状态如何都能调用，它对调用者传来的实参不设约束。宽泛契约的函数决不表现出未定义⾏为。反之，没有宽泛契约的函数就有严格契约。对于这些函数，如果违反前置条件，结果将会是未定义的。
 
-假如你在写一个参数为std::string的函数f，并且这个函数f很⾃然的决不引发异常。这就在建议我们f应该被声明为noexcept 。现在假如f有一个前置条件：类型为std::string的参数的⻓度不能超过32个字符。如果现在调用f并传给它一个⼤于32字符的参数，函数⾏为将是未定义的，因为违反了 （口头/⽂档）定义的 前置条件，导致了未定义⾏为。f没有义务去检查前置条件，它假设这些前置条件都是满⾜的。（调用者有责任确保参数字符不超过32字符等这些假设有效。）。
+假如你在写一个参数为 std::string 的函数 f，并且这个函数 f 很⾃然的决不引发异常。这就在建议我们 f 应该被声明为 noexcept 。现在假如 f 有一个前置条件：类型为 std::string 的参数的⻓度不能超过 32 个字符。如果现在调用 f 并传给它一个⼤于 32 字符的参数，函数⾏为将是未定义的，因为违反了 （口头/⽂档）定义的 前置条件，导致了未定义⾏为。f 没有义务去检查前置条件，它假设这些前置条件都是满⾜的。（调用者有责任确保参数字符不超过 32 字符等这些假设有效。）。
+
 ```cpp
 void f(const std::string& s) noexcept; // 前置条件：
                                        // s.length() <= 32
 ```
-如果函数⾥⾯检查前置条件冲突，而f声明了noexcept，这时就会抛出一个异常会导致程序终⽌。因为这个原因，区分严格/宽泛契约库设计者一般会将noexcept留给宽泛契约函数。
+
+如果函数⾥⾯检查前置条件冲突，而 f 声明了 noexcept，这时就会抛出一个异常会导致程序终⽌。因为这个原因，区分严格/宽泛契约库设计者一般会将 noexcept 留给宽泛契约函数。
 
 编译器不会为函数实现和异常规范提供一致性保障
+
 ```cpp
 void setup(); // 函数定义另在一处
 void cleanup();
@@ -869,25 +915,29 @@ void doWork() noexcept
     cleanup(); // 执⾏后置清理
 }
 ```
-这⾥，doWork声明为noexcept，即使它调用了⾮noexcept函数 setup 和 cleanup 。看起来有点⽭
-盾，其实可以猜想 setup 和 cleanup 在⽂档上写明了它们决不抛出异常，即使它们没有写上noexcept。⾄
-于为什么明明不抛异常却不写noexcept也是有合理原因的。⽐如，它们可能是用C写的库函数的一部分。（即使一些函数从C标准库移动到了std命名空间，也可能缺少异常规范，std::strlen就是一个例⼦，它没有声明
-noexcept）。或者它们可能是C++98库的一部分，它们不使用C++98异常规范的函数的一部分，到了C++11还没有修订。
 
-因为有很多合理原因解释为什么noexcept依赖于缺少noexcept保证的函数，所以C++允许这些代码，编译器一般也不会给出warnigns。
+这⾥，doWork 声明为 noexcept，即使它调用了⾮ noexcept 函数 setup 和 cleanup 。看起来有点⽭
+盾，其实可以猜想 setup 和 cleanup 在⽂档上写明了它们决不抛出异常，即使它们没有写上 noexcept。⾄
+于为什么明明不抛异常却不写 noexcept 也是有合理原因的。⽐如，它们可能是用 C 写的库函数的一部分。（即使一些函数从 C 标准库移动到了 std 命名空间，也可能缺少异常规范，std::strlen 就是一个例⼦，它没有声明
+noexcept）。或者它们可能是 C++98 库的一部分，它们不使用 C++98 异常规范的函数的一部分，到了 C++11 还没有修订。
 
-## Item14-remember
-- noexcept是函数接口的一部分，这意味着调用者会依赖它、
-- noexcept函数较之于⾮noexcept函数更容易优化
-- noexcept对于移动语义，swap，内存释放函数和析构函数⾮常有用
-- ⼤多数函数是异常中⽴的，而不是noexcept
+因为有很多合理原因解释为什么 noexcept 依赖于缺少 noexcept 保证的函数，所以 C++允许这些代码，编译器一般也不会给出 warnigns。
 
-## Item15:尽可能的使用constexpr
-从概念上来说，constexpr表明一个值不仅仅是常量，还是编译期可知的，这个表述并不全⾯，因为当
-constexpr被用于函数的时候，事情就有一些细微差别了。你不能假设constexpr函数是const，也不能保证
+## Item14:remember
+
+- noexcept 是函数接口的一部分，这意味着调用者会依赖它、
+- noexcept 函数较之于⾮ noexcept 函数更容易优化
+- noexcept 对于移动语义，swap，内存释放函数和析构函数⾮常有用
+- ⼤多数函数是异常中⽴的，而不是 noexcept
+
+## Item15:尽可能的使用 constexpr
+
+从概念上来说，constexpr 表明一个值不仅仅是常量，还是编译期可知的，这个表述并不全⾯，因为当
+constexpr 被用于函数的时候，事情就有一些细微差别了。你不能假设 constexpr 函数是 const，也不能保证
 它们的返回值是在编译期可知的。
 
-constexpr对象和const一样是在编译期可知的，编译期可知的值“享有特权”，它们可能被存放到只读存储空间中；“其值编译期可知”的常量整数会出现在需要“整型常量表达式（integral constant expression ）的 context 中，这类 context 包括数组⼤小，整数模板参数（包括std::array 对象的⻓度），枚举量，对⻬修饰符（译注： alignas(val) ），如果想要在上述的context中使用变量一定要声明他们为constexpr：
+constexpr 对象和 const 一样是在编译期可知的，编译期可知的值“享有特权”，它们可能被存放到只读存储空间中；“其值编译期可知”的常量整数会出现在需要“整型常量表达式（integral constant expression ）的 context 中，这类 context 包括数组⼤小，整数模板参数（包括 std::array 对象的⻓度），枚举量，对⻬修饰符（译注： alignas(val) ），如果想要在上述的 context 中使用变量一定要声明他们为 constexpr：
+
 ```cpp
 int sz; // ⾮constexpr变量
 …
@@ -903,11 +953,13 @@ int sz; // 和之前一样
 const auto arraySize = sz; // 没问题，arraySize是sz的常量复制
 std::array<int, arraySize> data; // 错误，arraySize值在编译期不可知
 ```
-所有constexpr对象都是const，但不是所有const对象都是constexpr。如果你想编译器保证一个变量有一个可以放到那些需要编译期常量的上下⽂的值，应该使用constexpr而不是const。
 
-如果使用constexpr修饰函数，则如果实参是编译期常量，它们将产出编译期值；如果是运⾏时值，它们就将产出运⾏时值：
-- constexpr函数可以用于需求编译期常量的上下⽂。如果你传给constexpr函数的实参在编译期可知，那么结果将在编译期计算。如果实参的值在编译期不知道，你的代码就会被拒绝。
-- 当一个constexpr函数被一个或者多个编译期不可知值调用时，它就像普通函数一样，运⾏时计算它的结果。这意味着你不需要两个函数，一个用于编译期计算，一个用于运⾏时计算。constexpr全做了。
+所有 constexpr 对象都是 const，但不是所有 const 对象都是 constexpr。如果你想编译器保证一个变量有一个可以放到那些需要编译期常量的上下⽂的值，应该使用 constexpr 而不是 const。
+
+如果使用 constexpr 修饰函数，则如果实参是编译期常量，它们将产出编译期值；如果是运⾏时值，它们就将产出运⾏时值：
+
+- constexpr 函数可以用于需求编译期常量的上下⽂。如果你传给 constexpr 函数的实参在编译期可知，那么结果将在编译期计算。如果实参的值在编译期不知道，你的代码就会被拒绝。
+- 当一个 constexpr 函数被一个或者多个编译期不可知值调用时，它就像普通函数一样，运⾏时计算它的结果。这意味着你不需要两个函数，一个用于编译期计算，一个用于运⾏时计算。constexpr 全做了。
 
 ```cpp
 constexpr // pow是constexpr函数
@@ -918,20 +970,26 @@ int pow(int base, int exp) noexcept // 绝不抛异常
 constexpr auto numConds = 5; //条件个数
 std::array<int, pow(3, numConds)> results; // 结果有3^numConds个元素
 ```
-constexpr只说了如果base和exp是编译期常量， pow 返回值可能是编译期常量；如果base 和/或 exp不是编译期常量， pow 结果将会在运⾏时计算。所以该函数还可以用在运行时：
+
+constexpr 只说了如果 base 和 exp 是编译期常量， pow 返回值可能是编译期常量；如果 base 和/或 exp 不是编译期常量， pow 结果将会在运⾏时计算。所以该函数还可以用在运行时：
+
 ```cpp
 auto base = readFromDB("base"); // 运⾏时获取三个值
 auto exp = readFromDB("exponent");
 auto baseToExp = pow(base, exp); // 运⾏时调用pow
 ```
-C++11中，constexpr函数的代码不超过一⾏语句：一个return。但是可以使用三元运算符“?:”来代替if-else语句，或者使用递归代替循环：
+
+C++11 中，constexpr 函数的代码不超过一⾏语句：一个 return。但是可以使用三元运算符“?:”来代替 if-else 语句，或者使用递归代替循环：
+
 ```cpp
 constexpr int pow(int base, int exp) noexcept
 {
     return (exp == 0 ? 1 : base * pow(base, exp - 1));
 }
 ```
-在C++14中，constexpr函数的限制变得⾮常宽松了，所以下⾯的函数实现成为了可能；
+
+在 C++14 中，constexpr 函数的限制变得⾮常宽松了，所以下⾯的函数实现成为了可能；
+
 ```cpp
 constexpr int pow(int base, int exp) noexcept // C++14
 {
@@ -940,7 +998,9 @@ constexpr int pow(int base, int exp) noexcept // C++14
     return result;
 }
 ```
-在C++11中，除了void外的所有内置类型外还包括一些用户定义的字⾯值能在编译器确定，因为构造函数和其他成员函数可以是constexpr：
+
+在 C++11 中，除了 void 外的所有内置类型外还包括一些用户定义的字⾯值能在编译器确定，因为构造函数和其他成员函数可以是 constexpr：
+
 ```cpp
 class Point {
 public:
@@ -964,7 +1024,9 @@ Point midpoint(const Point& p1, const Point& p2) noexcept
 }
 constexpr auto mid = midpoint(p1, p2);
 ```
-有两个限制使得Point的成员函数 setX 和 setY 不能声明为constexpr。第一，它们修改它们操作的对象的状态， 并且在C++11中，constexpr成员函数是隐式的const。第二，它们只能有void返回类型，void类型不是C++11中的字⾯值类型。这两个限制在C++14中放开了，所以C++14中Point的setter也能声明为constexpr：
+
+有两个限制使得 Point 的成员函数 setX 和 setY 不能声明为 constexpr。第一，它们修改它们操作的对象的状态， 并且在 C++11 中，constexpr 成员函数是隐式的 const。第二，它们只能有 void 返回类型，void 类型不是 C++11 中的字⾯值类型。这两个限制在 C++14 中放开了，所以 C++14 中 Point 的 setter 也能声明为 constexpr：
+
 ```cpp
 class Point {
 public:
@@ -988,16 +1050,20 @@ constexpr auto mid = midpoint(p1, p2);
 constexpr auto reflectedMid = // reflectedMid的值
              reflection(mid); // 在编译期可知
 ```
-尽可能的使用constexpr，因为：constexopr对象和constexpr函数可以用于很多⾮constexpr不能使用的场景。使用constexpr关键字可以最⼤化你的对象和函数可以使用的场景。
 
-但是如果你声明一个对象或者函数是constexpr，客户端程序员就会在那些场景中使用它。如果你后⾯认为使用constexpr是一个错误并想移除它，你可能造成⼤量客户端代码不能编译。
+尽可能的使用 constexpr，因为：constexopr 对象和 constexpr 函数可以用于很多⾮ constexpr 不能使用的场景。使用 constexpr 关键字可以最⼤化你的对象和函数可以使用的场景。
 
-## Item15-remember
-- constexpr对象是cosnt，它的值在编译期可知
-- 当传递编译期可知的值时，cosntexpr函数可以产出编译期可知的结果
+但是如果你声明一个对象或者函数是 constexpr，客户端程序员就会在那些场景中使用它。如果你后⾯认为使用 constexpr 是一个错误并想移除它，你可能造成⼤量客户端代码不能编译。
 
-## Item16: 让const成员函数线程安全
+## Item15:remember
+
+- constexpr 对象是 cosnt，它的值在编译期可知
+- 当传递编译期可知的值时，cosntexpr 函数可以产出编译期可知的结果
+
+## Item16: 让 const 成员函数线程安全
+
 计算多项式的根是很复杂的，因此如果不需要的话，我们就不做。如果必须做，我们肯定不会只做一次。所以，如果必须计算它们，就缓存多项式的根，然后实现 roots 来返回缓存的值。下⾯是最基本的实现：
+
 ```cpp
 class Polynomial {
 public:
@@ -1021,7 +1087,9 @@ Polynomial p;
 /*------ Thread 1 ------*/ /*-------- Thread 2 --------*/
 auto rootsOfp = p.roots(); auto valsGivingZero = p.roots();
 ```
-在本例中却没有做到线程安全。因为在 roots 中，这些线程中的一个或两个可能尝试修改成员变量rootsAreVaild 和 rootVals 。这就意味着在没有同步的情况下，这些代码会有不同的线程读写相同的内存。所以需要使用锁：**(由于std::mutex和std::atomic都是只能移动不能复制的，所以当该类中使用了他们时，该类也只能移动无法复制)**
+
+在本例中却没有做到线程安全。因为在 roots 中，这些线程中的一个或两个可能尝试修改成员变量 rootsAreVaild 和 rootVals 。这就意味着在没有同步的情况下，这些代码会有不同的线程读写相同的内存。所以需要使用锁：**(由于 std::mutex 和 std::atomic 都是只能移动不能复制的，所以当该类中使用了他们时，该类也只能移动无法复制)**
+
 ```cpp
 class Polynomial {
 public:
@@ -1041,8 +1109,10 @@ private:
     mutable RootsType rootsVals {};
 };
 ```
-因为对 std::atomic 变量的操作通常⽐互斥量的获取和释放的消耗更小，所以你可能更倾向与依赖std::atomic 。例如，在一个类中，缓存一个开销昂贵的 int ，你就会尝试使用一对 std::atomic 变
+
+因为对 std::atomic 变量的操作通常⽐互斥量的获取和释放的消耗更小，所以你可能更倾向与依赖 std::atomic 。例如，在一个类中，缓存一个开销昂贵的 int ，你就会尝试使用一对 std::atomic 变
 量而不是互斥锁。
+
 ```cpp
 class Widget {
 public:
@@ -1062,15 +1132,19 @@ private:
     mutable std::atomic<int> cachedValue;
 };
 ```
+
 这是可⾏的，但有时运⾏会⽐它做到更加困难。考虑：
+
 - 一个线程调用 Widget::magicValue ，将 cacheValid 视为 false ，执⾏这两个昂贵的计算，并将它们的和分配给 cachedValue 。
 - 此时，第二个线程调用 Widget::magicValue ，也将 cacheValid 视为 false ，因此执⾏刚才完成的第一个线程相同的计算。（这⾥的“第二个线程”实际上可能是其他⼏个线程。）
 
 如果交换这两个操作的位置能解决该问题但是会有更加严重的问题：
-- 一个线程调用 Widget::magicValue ，在 cacheVaild 被设置成true时执⾏到它。
-- 在这时，第二个线程调用 Widget::magicValue 随后检查缓存值。看到它是true，就返回cacheValue ，即使第一个线程还没有给它赋值。因此返回的值是不正确的。
 
-对于需要同步的是单个的变量或者内存位置，使用 std::atomic 就⾜够了。不过，一旦你需要对两个以上的变量或内存位置作为一个单元来操作的话，就应该使用互斥锁。对于Widget::magicValue 是这样的。
+- 一个线程调用 Widget::magicValue ，在 cacheVaild 被设置成 true 时执⾏到它。
+- 在这时，第二个线程调用 Widget::magicValue 随后检查缓存值。看到它是 true，就返回 cacheValue ，即使第一个线程还没有给它赋值。因此返回的值是不正确的。
+
+对于需要同步的是单个的变量或者内存位置，使用 std::atomic 就⾜够了。不过，一旦你需要对两个以上的变量或内存位置作为一个单元来操作的话，就应该使用互斥锁。对于 Widget::magicValue 是这样的。
+
 ```cpp
 class Widget {
 public:
@@ -1094,14 +1168,17 @@ private:
 
 ```
 
-## Item16-remember
-- 确保const成员函数线程安全，除⾮你确定它们永远不会在临界区（concurrent context）中使用。
+## Item16:remember
+
+- 确保 const 成员函数线程安全，除⾮你确定它们永远不会在临界区（concurrent context）中使用。
 - std::atomic 可能⽐互斥锁提供更好的性能，但是它只适合操作单个变量或内存位置。
 
 ## Item17:理解特殊成员函数函数的生成
-在C++术语中，特殊成员函数是指C++⾃⼰生成的函数。C++98有四个：默认构造函数函数，析构函数，拷贝构造函数，拷贝赋值运算符。这些函数仅在需要的时候才生成，⽐如某个代码使用它们但是它们没有在类中声明。默认构造函数仅在类完全没有构造函数的时候才生成。）生成的特殊成员函数是隐式public且inline，除⾮该类是继承⾃某个具有虚函数的类，否则生成的析构函数是⾮虚的。
 
-c++11有两个新的特殊成员：移动构造函数和移动赋值运算符
+在 C++术语中，特殊成员函数是指 C++⾃⼰生成的函数。C++98 有四个：默认构造函数函数，析构函数，拷贝构造函数，拷贝赋值运算符。这些函数仅在需要的时候才生成，⽐如某个代码使用它们但是它们没有在类中声明。默认构造函数仅在类完全没有构造函数的时候才生成。）生成的特殊成员函数是隐式 public 且 inline，除⾮该类是继承⾃某个具有虚函数的类，否则生成的析构函数是⾮虚的。
+
+c++11 有两个新的特殊成员：移动构造函数和移动赋值运算符
+
 ```cpp
 class Widget {
 public:
@@ -1112,28 +1189,32 @@ public:
 };
 
 ```
-移动操作仅在需要的时候生成，如果生成了，就会对⾮static数据执⾏逐成员的移动。那意味着移动构造函数根据 rhs 参数⾥⾯对应的成员移动构造出新部分，移动赋值运算符根据参数⾥⾯对应的⾮static成员移动赋值。移动构造函数也移动构造基类部分（如果有的话），移动赋值运算符也是移动赋值基类部分。
 
-两个拷贝操作是独⽴的：声明⼀个不会限制编译器声明另⼀个。所以如果你声明⼀个拷贝构造函数，但是没有声明拷贝赋值运算符，如果写的代码用到了拷贝赋值，编译器会帮助你生成拷贝赋值运算符重载。同样的，如果你声明拷贝赋值运算符但是没有拷贝构造，代码用到拷贝构造编译器就会生成它。上述规则在C++98和C++11中都成⽴。
+移动操作仅在需要的时候生成，如果生成了，就会对⾮ static 数据执⾏逐成员的移动。那意味着移动构造函数根据 rhs 参数⾥⾯对应的成员移动构造出新部分，移动赋值运算符根据参数⾥⾯对应的⾮ static 成员移动赋值。移动构造函数也移动构造基类部分（如果有的话），移动赋值运算符也是移动赋值基类部分。
+
+两个拷贝操作是独⽴的：声明⼀个不会限制编译器声明另⼀个。所以如果你声明⼀个拷贝构造函数，但是没有声明拷贝赋值运算符，如果写的代码用到了拷贝赋值，编译器会帮助你生成拷贝赋值运算符重载。同样的，如果你声明拷贝赋值运算符但是没有拷贝构造，代码用到拷贝构造编译器就会生成它。上述规则在 C++98 和 C++11 中都成⽴。
 
 如果你声明了某个移动函数，编译器就不再生成另⼀个移动函数。这与复制函数的生成规则不太⼀样：两个复制函数是独⽴的，声明⼀个不会影响另⼀个的默认生成。这条规则的背后原因是，如果你声明了某个移动函数，就表明这个类型的移动操作不再是“逐⼀移动成员变量”的语义，即你不需要编译器默认生成的移动函数的语义，因此编译器也不会为你生成另⼀个移动函数。
 
 如果⼀个类显式声明了拷贝操作，编译器就不会⽣成移动操作。这种限制的解释是如果声明拷贝操作就暗⽰着默认逐成员拷贝操作不适用于该类，编译器会明⽩如果默认拷贝不适用于该类，移动操作也可能是不适用的。
 
-声明移动操作使得编译器不会⽣成拷贝操作。（编译器通过给这些函数加上delete来保证，参⻅[Item11](#item11优先考虑使用deleted函数而⾮使用未定义的私有声明)）⽐较，如果逐成员移动对该类来说不合适，也没有理由指望逐成员拷贝操作是合适的。听起来会破坏C++98的某些代码，因为C++11中拷贝操作可用的条件⽐C++98更受限，但事实并⾮如此。C++98的代码没有移动操作，因为C++98中没有移动对象这种概念。只有⼀种⽅法能让老代码使用用户声明的移动操作，那就是使用C++11标准然后添加这些操作， 并在享受这些操作带来的好处同时接受C++11特殊成员函数⽣成规则的限制。
+声明移动操作使得编译器不会⽣成拷贝操作。（编译器通过给这些函数加上 delete 来保证，参⻅[Item11](#item11优先考虑使用deleted函数而⾮使用未定义的私有声明)）⽐较，如果逐成员移动对该类来说不合适，也没有理由指望逐成员拷贝操作是合适的。听起来会破坏 C++98 的某些代码，因为 C++11 中拷贝操作可用的条件⽐ C++98 更受限，但事实并⾮如此。C++98 的代码没有移动操作，因为 C++98 中没有移动对象这种概念。只有⼀种⽅法能让老代码使用用户声明的移动操作，那就是使用 C++11 标准然后添加这些操作， 并在享受这些操作带来的好处同时接受 C++11 特殊成员函数⽣成规则的限制。
 
-**Rule of Three规则**：如果你声明了拷贝构造函数，拷贝赋值运算符，或者析构函数三者之⼀，你应该也声明其余两个。它来源于⻓期的观察，即用户接管拷贝操作的需求⼏乎都是因为该类会做其他资源的管理，这也⼏乎意味着：
+**Rule of Three 规则**：如果你声明了拷贝构造函数，拷贝赋值运算符，或者析构函数三者之⼀，你应该也声明其余两个。它来源于⻓期的观察，即用户接管拷贝操作的需求⼏乎都是因为该类会做其他资源的管理，这也⼏乎意味着：
+
 - ⽆论哪种资源管理如果能在⼀个拷贝操作内完成，也应该在另⼀个拷贝操作内完成
 - 类析构函数也需要参与资源的管理（通常是释放）
 
-Rule of Three带来的后果就是只要出现用户定义的析构函数就意味着简单的逐成员拷贝操作不适用于该类。接着，如果⼀个类声明了析构也意味着拷贝操作可能不应该⾃定⽣成，因为它们做的事情可能是错误的。在C++98提出的时候，上述推理没有得倒⾜够的重视，所以C++98用户声明析构不会左右编译器⽣成拷贝操作的意愿。C++11中情况仍然如此，**但仅仅是因为限制拷贝操作⽣成的条件会破坏⽼代码。**
+Rule of Three 带来的后果就是只要出现用户定义的析构函数就意味着简单的逐成员拷贝操作不适用于该类。接着，如果⼀个类声明了析构也意味着拷贝操作可能不应该⾃定⽣成，因为它们做的事情可能是错误的。在 C++98 提出的时候，上述推理没有得倒⾜够的重视，所以 C++98 用户声明析构不会左右编译器⽣成拷贝操作的意愿。C++11 中情况仍然如此，**但仅仅是因为限制拷贝操作⽣成的条件会破坏⽼代码。**
 
-Rule of Three规则背后的解释依然有效，再加上对声明拷贝操作阻⽌移动操作隐式⽣成的观察，使得C++11不会为那些有用户定义的析构函数的类⽣成移动操作。所以仅当下⾯条件成⽴时才会⽣成移动操作：
+Rule of Three 规则背后的解释依然有效，再加上对声明拷贝操作阻⽌移动操作隐式⽣成的观察，使得 C++11 不会为那些有用户定义的析构函数的类⽣成移动操作。所以仅当下⾯条件成⽴时才会⽣成移动操作：
+
 - 类中没有拷贝操作
 - 类中没有移动操作
 - 类中没有用户定义的析构
 
 所以如果在类中声明了析构，或是拷贝函数，但依然需要使用自动生成的函数（逐成员拷贝，移动）时，可以使用=default：
+
 ```cpp
 class Widget {
 public:
@@ -1146,7 +1227,9 @@ public:
     ...
 };
 ```
-在多态基类中很有用，因为需要声明析构函数时虚函数，当声明了析构函数后，移动函数都不会自动生成，如果因此声明了移动函数，拷贝函数这时候又不会自动生成。这时候就可以使用default关键字：
+
+在多态基类中很有用，因为需要声明析构函数时虚函数，当声明了析构函数后，移动函数都不会自动生成，如果因此声明了移动函数，拷贝函数这时候又不会自动生成。这时候就可以使用 default 关键字：
+
 ```cpp
 class Base {
 public:
@@ -1158,7 +1241,9 @@ public:
     ...
 };
 ```
-实际上，就算编译器乐于为你的类⽣成拷贝和移动操作，⽣成的函数也如你所愿，你也应该⼿动声明它们然后加上 =default 。这看起来⽐较多余，但是它让你的意图更明确，也能帮助你避免⼀些微妙的bug。⽐如，你有⼀个字符串哈希表，即键为整数id，值为字符串，⽀持快速查找的数据结构：
+
+实际上，就算编译器乐于为你的类⽣成拷贝和移动操作，⽣成的函数也如你所愿，你也应该⼿动声明它们然后加上 =default 。这看起来⽐较多余，但是它让你的意图更明确，也能帮助你避免⼀些微妙的 bug。⽐如，你有⼀个字符串哈希表，即键为整数 id，值为字符串，⽀持快速查找的数据结构：
+
 ```cpp
 class StringTable {
 public:
@@ -1168,8 +1253,10 @@ private:
     std::map<int, std::string> values;
 };
 ```
+
 假设这个类没有声明拷贝操作，没有移动操作，也没有析构，如果它们被用到编译器会⾃动⽣成。没
 错，很⽅便。后来需要在对象构造和析构中打⽇志，增加这种功能很简单：
+
 ```cpp
 class StringTable {
 public:
@@ -1182,17 +1269,20 @@ private:
     std::map<int, std::string> values; // as before
 };
 ```
-看起来合情合理，但是声明析构有潜在的副作用：**它阻⽌了移动操作的⽣成**。然而，拷贝操作的⽣成是不受影响的。因此代码能通过编译，运⾏，也能通过功能（译注：即打⽇志的功能）测试。功能测试也包括移动功能，因为即使该类不⽀持移动操作，对该类的移动请求也能通过编译和运⾏。这个请求正如之前提到的，会转而由拷贝操作完成。它因为着对StringTable对象的移动实际上是对对象的拷贝，即拷贝⾥⾯std::map<int, std::string> 对象。拷贝 std::map<int, std::string> 对象很可能⽐移动慢⼏个数量级。简单的加个析构就引⼊了极⼤的性能问题！对拷贝和移动操作显式加个=default ，问题将不再出现。
 
-C++11对于特殊成员函数处理的规则如下：
-- 默认构造函数：和C++98规则相同。仅当类不存在用户声明的构造函数时才⾃动⽣成。
-- 析构函数：基本上和C++98相同；稍微不同的是现在析构默认noexcept（参⻅[Item14](#item14如果函数不抛出异常请使用noexcept)）。和C++98⼀样，仅当基类析构为虚函数时该类析构才为虚函数。
-- 拷贝构造函数：和C++98运⾏时⾏为⼀样：逐成员拷贝⾮static数据。仅当类没有用户定义的拷贝构造时才⽣成。如果类声明了移动操作它就是delete。当用户声明了拷贝赋值或者析构，该函数不再⾃动⽣成。
-- 拷贝赋值运算符：和C++98运⾏时⾏为⼀样：逐成员拷贝赋值⾮static数据。仅当类没有用户定义的拷贝赋值时才⽣成。如果类声明了移动操作它就是delete。当用户声明了拷贝构造或者析构，该函数不再⾃动⽣成。
-- 移动构造函数和移动赋值运算符：都对⾮static数据执⾏逐成员移动。仅当类没有用户定义的拷贝
-操作，移动操作或析构时才⾃动⽣成。
+看起来合情合理，但是声明析构有潜在的副作用：**它阻⽌了移动操作的⽣成**。然而，拷贝操作的⽣成是不受影响的。因此代码能通过编译，运⾏，也能通过功能（译注：即打⽇志的功能）测试。功能测试也包括移动功能，因为即使该类不⽀持移动操作，对该类的移动请求也能通过编译和运⾏。这个请求正如之前提到的，会转而由拷贝操作完成。它因为着对 StringTable 对象的移动实际上是对对象的拷贝，即拷贝⾥⾯ std::map<int, std::string> 对象。拷贝 std::map<int, std::string> 对象很可能⽐移动慢⼏个数量级。简单的加个析构就引⼊了极⼤的性能问题！对拷贝和移动操作显式加个=default ，问题将不再出现。
+
+C++11 对于特殊成员函数处理的规则如下：
+
+- 默认构造函数：和 C++98 规则相同。仅当类不存在用户声明的构造函数时才⾃动⽣成。
+- 析构函数：基本上和 C++98 相同；稍微不同的是现在析构默认 noexcept（参⻅[Item14](#item14如果函数不抛出异常请使用noexcept)）。和 C++98 ⼀样，仅当基类析构为虚函数时该类析构才为虚函数。
+- 拷贝构造函数：和 C++98 运⾏时⾏为⼀样：逐成员拷贝⾮ static 数据。仅当类没有用户定义的拷贝构造时才⽣成。如果类声明了移动操作它就是 delete。当用户声明了拷贝赋值或者析构，该函数不再⾃动⽣成。
+- 拷贝赋值运算符：和 C++98 运⾏时⾏为⼀样：逐成员拷贝赋值⾮ static 数据。仅当类没有用户定义的拷贝赋值时才⽣成。如果类声明了移动操作它就是 delete。当用户声明了拷贝构造或者析构，该函数不再⾃动⽣成。
+- 移动构造函数和移动赋值运算符：都对⾮ static 数据执⾏逐成员移动。仅当类没有用户定义的拷贝
+  操作，移动操作或析构时才⾃动⽣成。
 
 **没有成员函数模版阻⽌编译器⽣成特殊成员函数的规则**：
+
 ```cpp
 class Widget {
     ...
@@ -1204,8 +1294,11 @@ class Widget {
 };
 
 ```
+
 [Item26](./rvalue_references%26more.md)将会详细讨论它可能带来的后果。
-## Item17-remember
+
+## Item17:remember
+
 - 特殊成员函数是编译器可能⾃动⽣成的函数：默认构造，析构，拷贝操作，移动操作。
 - 移动操作仅当类没有显式声明移动操作，拷贝操作，析构时才⾃动⽣成。
-- 拷贝构造仅当类没有显式声明拷贝构造时才⾃动⽣成，并且如果用户声明了移动操作，拷贝构造就是delete。拷贝赋值运算符仅当类没有显式声明拷贝赋值运算符时才⾃动⽣成，并且如果用户声明了移动操作，拷贝赋值运算符就是delete。当用户声明了析构函数，拷贝操作不再⾃动⽣成。
+- 拷贝构造仅当类没有显式声明拷贝构造时才⾃动⽣成，并且如果用户声明了移动操作，拷贝构造就是 delete。拷贝赋值运算符仅当类没有显式声明拷贝赋值运算符时才⾃动⽣成，并且如果用户声明了移动操作，拷贝赋值运算符就是 delete。当用户声明了析构函数，拷贝操作不再⾃动⽣成。
